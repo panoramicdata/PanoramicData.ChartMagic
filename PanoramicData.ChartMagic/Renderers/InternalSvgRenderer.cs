@@ -1,4 +1,4 @@
-namespace PanoramicData.ChartMagic.Renderers;
+﻿namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
 /// Writes a chart out as SVG.
@@ -8,7 +8,7 @@ namespace PanoramicData.ChartMagic.Renderers;
 /// draws it - the axes, the legend, the series, the pie and the markers each have their own.
 /// They share an <see cref="SvgCanvas"/>, which owns the document and the drawing primitives.
 /// </remarks>
-internal class InternalSvgRenderer(int widthPixels, int heightPixels, bool debug)
+internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, bool debug)
 {
 	private readonly SvgCanvas _canvas = new(widthPixels, heightPixels, debug);
 

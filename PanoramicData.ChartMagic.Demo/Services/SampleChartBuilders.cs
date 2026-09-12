@@ -8,9 +8,15 @@ namespace PanoramicData.ChartMagic.Demo.Services;
 /// The specifications behind the gallery: one builder per sample, and the small helpers that
 /// decorate a specification with axes, a range, a legend position and so on.
 /// </summary>
-public static partial class SampleCharts
+/// <remarks>
+/// Separate from <see cref="SampleCharts"/>, which owns the gallery order and the rendering,
+/// because this is the part that changes whenever a sample is added.
+/// </remarks>
+internal static class SampleChartBuilders
 {
-	private static List<ChartPoint> Points(params double[] values)
+	private static readonly string[] Days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+	internal static List<ChartPoint> Points(params double[] values)
 	{
 		var points = new List<ChartPoint>();
 		for (var i = 0; i < values.Length; i++)
@@ -22,7 +28,7 @@ public static partial class SampleCharts
 		return points;
 	}
 
-	private static ChartSpecification WithAxes(ChartSpecification specification, string xTitle, string yTitle)
+	internal static ChartSpecification WithAxes(ChartSpecification specification, string xTitle, string yTitle)
 	{
 		specification.XAxisTitle = xTitle;
 		specification.YAxisTitle = yTitle;
@@ -30,7 +36,7 @@ public static partial class SampleCharts
 		return specification;
 	}
 
-	private static ChartSpecification Build(SeriesChartType chartType, bool markers = false)
+	internal static ChartSpecification Build(SeriesChartType chartType, bool markers = false)
 		=> new()
 		{
 			SeriesList =
@@ -52,7 +58,7 @@ public static partial class SampleCharts
 			]
 		};
 
-	private static ChartSpecification BuildMultiSeries(SeriesChartType chartType)
+	internal static ChartSpecification BuildMultiSeries(SeriesChartType chartType)
 	{
 		var colours = new[] { Color.SteelBlue, Color.SeaGreen, Color.Goldenrod };
 		var names = new[] { "CPU", "Memory", "Disk" };
@@ -87,13 +93,13 @@ public static partial class SampleCharts
 		return specification;
 	}
 
-	private static ChartSpecification WithPieLabels(ChartSpecification specification, string style)
+	internal static ChartSpecification WithPieLabels(ChartSpecification specification, string style)
 	{
 		specification.PieLabelStyle = style;
 		return specification;
 	}
 
-	private static ChartSpecification BuildMixed()
+	internal static ChartSpecification BuildMixed()
 	{
 		var specification = new ChartSpecification
 		{
@@ -128,20 +134,20 @@ public static partial class SampleCharts
 		return WithAxes(specification, "Day", "Percent");
 	}
 
-	private static ChartSpecification WithRange(ChartSpecification specification, double minimum, double maximum)
+	internal static ChartSpecification WithRange(ChartSpecification specification, double minimum, double maximum)
 	{
 		specification.YAxisMinimum = minimum;
 		specification.YAxisMaximum = maximum;
 		return specification;
 	}
 
-	private static ChartSpecification WithLabelAngle(ChartSpecification specification, int degrees)
+	internal static ChartSpecification WithLabelAngle(ChartSpecification specification, int degrees)
 	{
 		specification.XAxisLabelAngle = degrees;
 		return specification;
 	}
 
-	private static ChartSpecification WithDoughnutHole(ChartSpecification specification, int percent)
+	internal static ChartSpecification WithDoughnutHole(ChartSpecification specification, int percent)
 	{
 		specification.DoughnutRadius = percent;
 		return specification;
@@ -151,7 +157,7 @@ public static partial class SampleCharts
 	/// The legend as a column on the right. Positions are percentages of the image measured from
 	/// the bottom left, so a full-height legend on the right is x 78, y 0.
 	/// </summary>
-	private static ChartSpecification WithLegendColumn(ChartSpecification specification)
+	internal static ChartSpecification WithLegendColumn(ChartSpecification specification)
 	{
 		specification.LegendStyle = LegendStyle.Column;
 		specification.LegendXPositionPercent = 78;
@@ -162,7 +168,7 @@ public static partial class SampleCharts
 		return specification;
 	}
 
-	private static ChartSpecification WithLegendBelow(ChartSpecification specification)
+	internal static ChartSpecification WithLegendBelow(ChartSpecification specification)
 	{
 		specification.LegendStyle = LegendStyle.Row;
 		specification.LegendXPositionPercent = 0;
@@ -176,7 +182,7 @@ public static partial class SampleCharts
 		return specification;
 	}
 
-	private static ChartSpecification BuildMarkerGallery()
+	internal static ChartSpecification BuildMarkerGallery()
 	{
 		var styles = new[]
 		{
@@ -201,8 +207,7 @@ public static partial class SampleCharts
 			Color.SlateGray
 		};
 
-		var specification = new ChartSpecification { LegendStyle = LegendStyle.Column };
-		WithLegendColumn(specification);
+		var specification = WithLegendColumn(new ChartSpecification { LegendStyle = LegendStyle.Column });
 
 		for (var index = 0; index < styles.Length; index++)
 		{
@@ -228,7 +233,7 @@ public static partial class SampleCharts
 		return WithAxes(specification, "Point", "Series");
 	}
 
-	private static ChartSpecification BuildGridlines()
+	internal static ChartSpecification BuildGridlines()
 	{
 		var specification = WithAxes(BuildMultiSeries(SeriesChartType.Line), "Day", "Percent");
 		specification.XAxisMajorGridEnabled = true;
@@ -238,11 +243,10 @@ public static partial class SampleCharts
 		specification.YAxisMajorGridColor = Color.FromArgb(0xC0, 0xC8, 0xD0);
 		specification.YAxisMinorGridColor = Color.FromArgb(0xE8, 0xEC, 0xF0);
 		specification.LegendStyle = LegendStyle.Column;
-		WithLegendColumn(specification);
-		return specification;
+		return WithLegendColumn(specification);
 	}
 
-	private static ChartSpecification BuildFormatted()
+	internal static ChartSpecification BuildFormatted()
 	{
 		var specification = new ChartSpecification
 		{
@@ -265,7 +269,7 @@ public static partial class SampleCharts
 		return WithAxes(specification, "Day", "Requests");
 	}
 
-	private static ChartSpecification BuildLongCategories()
+	internal static ChartSpecification BuildLongCategories()
 	{
 		var regions = new[] { "North West", "North East", "Midlands", "South West", "South East" };
 		var values = new double[] { 42, 31, 55, 28, 61 };
@@ -288,7 +292,7 @@ public static partial class SampleCharts
 		};
 	}
 
-	private static ChartSpecification BuildNegative()
+	internal static ChartSpecification BuildNegative()
 	{
 		var months = new[] { "Jan", "Feb", "Mar", "Apr", "May", "Jun" };
 		var values = new double[] { 18, -7, 12, -14, 4, 21 };
@@ -311,7 +315,7 @@ public static partial class SampleCharts
 		};
 	}
 
-	private static ChartSpecification BuildSinglePoint()
+	internal static ChartSpecification BuildSinglePoint()
 		=> new()
 		{
 			SeriesList =
@@ -329,7 +333,7 @@ public static partial class SampleCharts
 			]
 		};
 
-	private static ChartSpecification BuildManyCategories()
+	internal static ChartSpecification BuildManyCategories()
 	{
 		var points = new List<ChartPoint>();
 		for (var hour = 0; hour < 24; hour++)
@@ -359,7 +363,7 @@ public static partial class SampleCharts
 		};
 	}
 
-	private static ChartSpecification BuildPie(SeriesChartType chartType)
+	internal static ChartSpecification BuildPie(SeriesChartType chartType)
 	{
 		var colours = new[]
 		{
@@ -394,7 +398,7 @@ public static partial class SampleCharts
 		};
 	}
 
-	private static ChartSpecification BuildCollectedPie()
+	internal static ChartSpecification BuildCollectedPie()
 	{
 		var specification = BuildPie(SeriesChartType.Pie);
 		specification.PieLabelStyle = "Outside";
@@ -405,7 +409,7 @@ public static partial class SampleCharts
 		return specification;
 	}
 
-	private static ChartSpecification BuildWithAxisFurniture()
+	internal static ChartSpecification BuildWithAxisFurniture()
 	{
 		var specification = WithAxes(Build(SeriesChartType.Line, markers: true), "Day", "Percent");
 		specification.XAxisMajorGridEnabled = true;
@@ -415,7 +419,7 @@ public static partial class SampleCharts
 		return specification;
 	}
 
-	private static ChartSpecification BuildLogarithmic()
+	internal static ChartSpecification BuildLogarithmic()
 	{
 		var specification = new ChartSpecification
 		{

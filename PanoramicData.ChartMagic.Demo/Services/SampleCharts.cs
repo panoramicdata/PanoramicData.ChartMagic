@@ -1,13 +1,14 @@
 ﻿using PanoramicData.ChartMagic.Models;
 using System.Drawing;
 using System.Text;
+using static PanoramicData.ChartMagic.Demo.Services.SampleChartBuilders;
 
 namespace PanoramicData.ChartMagic.Demo.Services;
 
 /// <summary>
 /// The sample gallery, and the SVG rendering used to display it.
 /// </summary>
-public static partial class SampleCharts
+public static class SampleCharts
 {
 	private const int Width = 720;
 	private const int Height = 380;
@@ -30,8 +31,6 @@ public static partial class SampleCharts
 	/// The container behind every chart is striped, so anything opaque is obvious at a glance.
 	/// </remarks>
 	private static readonly Color TranslucentBackground = Color.FromArgb(0x33, 0x77, 0x77, 0x77);
-
-	private static readonly string[] Days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 	/// <summary>
 	/// Renders a specification to an inline SVG string, in the colours of the given theme.

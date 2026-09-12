@@ -277,7 +277,7 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 	/// to the value of the point, occupying its slot within the category band.
 	/// </summary>
 	/// <remarks>
-	/// Issue #33: <c>InternalSvgRenderer</c> had no case for any of these chart types, so a
+	/// Issue #33: the renderer had no case for any of these chart types, so a
 	/// column chart rendered its legend and nothing else - no exception, no empty-plot warning,
 	/// just a blank plot area beside a correct-looking legend.
 	/// </remarks>
