@@ -1,10 +1,13 @@
-namespace PanoramicData.ChartMagic.Renderers;
+﻿namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
 /// The point markers: one shape definition per series, placed at each point by translation.
 /// </summary>
-internal partial class InternalSvgRenderer
+/// <param name="canvas">The document this draws into.</param>
+internal sealed class MarkerFactory(SvgCanvas canvas)
 {
+	private readonly SvgCanvas _canvas = canvas;
+
 	/// <summary>
 	/// Builds the marker shape for a series, centred on the origin so that a single definition can
 	/// be placed at each point by translation alone.
@@ -15,7 +18,7 @@ internal partial class InternalSvgRenderer
 	/// rendering. The sizes follow the Microsoft chart control convention that marker size is the
 	/// full width of the marker, not its radius.
 	/// </remarks>
-	private XmlElement? CreateMarkerDefinition(Series series, string id)
+	internal XmlElement? CreateMarkerDefinition(Series series, string id)
 	{
 		if (series.MarkerStyle == MarkerStyle.None)
 		{
@@ -38,9 +41,9 @@ internal partial class InternalSvgRenderer
 	/// <summary>
 	/// A reference to a series' marker definition, placed at one point.
 	/// </summary>
-	private XmlElement CreateMarkerReference(string markerId, double x, double y)
+	internal XmlElement CreateMarkerReference(string markerId, double x, double y)
 	{
-		var markerNode = _xmlDocument.CreateElement(string.Empty, "use", string.Empty);
+		var markerNode = _canvas.Element("use");
 		markerNode.SetAttribute("xlink:href", $"#{markerId}");
 		markerNode.SetAttribute("transform", $"translate({x} {y})");
 		return markerNode;
@@ -73,18 +76,18 @@ internal partial class InternalSvgRenderer
 
 	private XmlElement Circle(double radius)
 	{
-		var node = _xmlDocument.CreateElement(string.Empty, "circle", string.Empty);
-		node.SetAttribute("r", N(radius));
+		var node = _canvas.Element("circle");
+		node.SetAttribute("r", SvgCanvas.N(radius));
 		return node;
 	}
 
 	private XmlElement Square(double size, double half)
 	{
-		var node = _xmlDocument.CreateElement(string.Empty, "rect", string.Empty);
-		node.SetAttribute("x", N(-half));
-		node.SetAttribute("y", N(-half));
-		node.SetAttribute("width", N(size));
-		node.SetAttribute("height", N(size));
+		var node = _canvas.Element("rect");
+		node.SetAttribute("x", SvgCanvas.N(-half));
+		node.SetAttribute("y", SvgCanvas.N(-half));
+		node.SetAttribute("width", SvgCanvas.N(size));
+		node.SetAttribute("height", SvgCanvas.N(size));
 		return node;
 	}
 
@@ -107,8 +110,8 @@ internal partial class InternalSvgRenderer
 	/// </summary>
 	private XmlElement Polygon(IReadOnlyList<(double X, double Y)> points)
 	{
-		var node = _xmlDocument.CreateElement(string.Empty, "polygon", string.Empty);
-		node.SetAttribute("points", string.Join(" ", points.Select(p => $"{N(p.X)},{N(p.Y)}")));
+		var node = _canvas.Element("polygon");
+		node.SetAttribute("points", string.Join(" ", points.Select(p => $"{SvgCanvas.N(p.X)},{SvgCanvas.N(p.Y)}")));
 		return node;
 	}
 

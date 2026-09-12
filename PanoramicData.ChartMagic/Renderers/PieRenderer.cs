@@ -1,10 +1,13 @@
-namespace PanoramicData.ChartMagic.Renderers;
+﻿namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
 /// Pies and doughnuts, which are drawn as a ring of wedges rather than against axes.
 /// </summary>
-internal partial class InternalSvgRenderer
+/// <param name="canvas">The document this draws into.</param>
+internal sealed class PieRenderer(SvgCanvas canvas)
 {
+	private readonly SvgCanvas _canvas = canvas;
+
 	/// <summary>
 	/// The offset that puts a pie start angle of zero at three o clock.
 	/// </summary>
@@ -13,7 +16,7 @@ internal partial class InternalSvgRenderer
 	/// <summary>
 	/// Whether this chart type is drawn as a ring of slices rather than against axes.
 	/// </summary>
-	private static bool IsPie(Series series)
+	internal static bool IsPie(Series series)
 		=> series.ChartType is SeriesChartType.Pie or SeriesChartType.Doughnut;
 
 	/// <summary>
@@ -24,14 +27,14 @@ internal partial class InternalSvgRenderer
 	/// Angles run clockwise from twelve o'clock, as they do in the Microsoft chart control, so a
 	/// start angle of zero puts the first slice boundary at the top.
 	/// </remarks>
-	private void PlotPie(Series series, List<PieSlice> slices, XmlElement innerPlotNode, double plotWidth, double plotHeight)
+	internal void Plot(Series series, List<PieSlice> slices, XmlElement innerPlotNode, double plotWidth, double plotHeight)
 	{
 		if (slices.Count == 0)
 		{
 			return;
 		}
 
-		var pieNode = CreateGroup("pie");
+		var pieNode = _canvas.Group("pie");
 		innerPlotNode.AppendChild(pieNode);
 
 		// Centred in the inner plot, not the chart area. Measured against DocMagic: for a chart
@@ -84,7 +87,7 @@ internal partial class InternalSvgRenderer
 		double radius,
 		double innerRadius)
 	{
-		var wedge = _xmlDocument.CreateElement(string.Empty, "path", string.Empty);
+		var wedge = _canvas.Element("path");
 		wedge.SetAttribute("d", WedgePath(centreX, centreY, radius, innerRadius, slice));
 		wedge.SetAttribute("fill", slice.Color.ToHex());
 		if (slice.Color.A != 255)
@@ -128,7 +131,7 @@ internal partial class InternalSvgRenderer
 				: InsidePieLabelPosition(centreX, centreY, radius, innerRadius, slice);
 
 			pieNode.AppendChild(
-				CreateTextNode(
+				_canvas.Text(
 					FormattableString.Invariant($"pieLabel{slice.StartAngleDegrees:F2}"),
 					at.X,
 					at.Y,
@@ -198,26 +201,26 @@ internal partial class InternalSvgRenderer
 
 		if (innerRadius <= 0)
 		{
-			return $"M{N(centreX)} {N(centreY)} L{N(outerStart.X)} {N(outerStart.Y)} "
-				+ $"A{N(radius)} {N(radius)} 0 {largeArc} 1 {N(outerEnd.X)} {N(outerEnd.Y)} Z";
+			return $"M{SvgCanvas.N(centreX)} {SvgCanvas.N(centreY)} L{SvgCanvas.N(outerStart.X)} {SvgCanvas.N(outerStart.Y)} "
+				+ $"A{SvgCanvas.N(radius)} {SvgCanvas.N(radius)} 0 {largeArc} 1 {SvgCanvas.N(outerEnd.X)} {SvgCanvas.N(outerEnd.Y)} Z";
 		}
 
 		var innerEnd = PointOnCircle(centreX, centreY, innerRadius, end);
 		var innerStart = PointOnCircle(centreX, centreY, innerRadius, start);
 
-		return $"M{N(outerStart.X)} {N(outerStart.Y)} "
-			+ $"A{N(radius)} {N(radius)} 0 {largeArc} 1 {N(outerEnd.X)} {N(outerEnd.Y)} "
-			+ $"L{N(innerEnd.X)} {N(innerEnd.Y)} "
-			+ $"A{N(innerRadius)} {N(innerRadius)} 0 {largeArc} 0 {N(innerStart.X)} {N(innerStart.Y)} Z";
+		return $"M{SvgCanvas.N(outerStart.X)} {SvgCanvas.N(outerStart.Y)} "
+			+ $"A{SvgCanvas.N(radius)} {SvgCanvas.N(radius)} 0 {largeArc} 1 {SvgCanvas.N(outerEnd.X)} {SvgCanvas.N(outerEnd.Y)} "
+			+ $"L{SvgCanvas.N(innerEnd.X)} {SvgCanvas.N(innerEnd.Y)} "
+			+ $"A{SvgCanvas.N(innerRadius)} {SvgCanvas.N(innerRadius)} 0 {largeArc} 0 {SvgCanvas.N(innerStart.X)} {SvgCanvas.N(innerStart.Y)} Z";
 	}
 
 	private static string FullRingPath(double centreX, double centreY, double radius, double innerRadius)
 	{
 		var top = PointOnCircle(centreX, centreY, radius, 0);
 		var bottom = PointOnCircle(centreX, centreY, radius, 180);
-		var outer = $"M{N(top.X)} {N(top.Y)} "
-			+ $"A{N(radius)} {N(radius)} 0 1 1 {N(bottom.X)} {N(bottom.Y)} "
-			+ $"A{N(radius)} {N(radius)} 0 1 1 {N(top.X)} {N(top.Y)} Z";
+		var outer = $"M{SvgCanvas.N(top.X)} {SvgCanvas.N(top.Y)} "
+			+ $"A{SvgCanvas.N(radius)} {SvgCanvas.N(radius)} 0 1 1 {SvgCanvas.N(bottom.X)} {SvgCanvas.N(bottom.Y)} "
+			+ $"A{SvgCanvas.N(radius)} {SvgCanvas.N(radius)} 0 1 1 {SvgCanvas.N(top.X)} {SvgCanvas.N(top.Y)} Z";
 
 		if (innerRadius <= 0)
 		{
@@ -228,9 +231,9 @@ internal partial class InternalSvgRenderer
 		var innerTop = PointOnCircle(centreX, centreY, innerRadius, 0);
 		var innerBottom = PointOnCircle(centreX, centreY, innerRadius, 180);
 		return outer
-			+ $" M{N(innerTop.X)} {N(innerTop.Y)} "
-			+ $"A{N(innerRadius)} {N(innerRadius)} 0 1 0 {N(innerBottom.X)} {N(innerBottom.Y)} "
-			+ $"A{N(innerRadius)} {N(innerRadius)} 0 1 0 {N(innerTop.X)} {N(innerTop.Y)} Z";
+			+ $" M{SvgCanvas.N(innerTop.X)} {SvgCanvas.N(innerTop.Y)} "
+			+ $"A{SvgCanvas.N(innerRadius)} {SvgCanvas.N(innerRadius)} 0 1 0 {SvgCanvas.N(innerBottom.X)} {SvgCanvas.N(innerBottom.Y)} "
+			+ $"A{SvgCanvas.N(innerRadius)} {SvgCanvas.N(innerRadius)} 0 1 0 {SvgCanvas.N(innerTop.X)} {SvgCanvas.N(innerTop.Y)} Z";
 	}
 
 	/// <summary>

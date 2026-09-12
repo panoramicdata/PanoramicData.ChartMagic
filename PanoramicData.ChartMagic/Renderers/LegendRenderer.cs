@@ -1,12 +1,15 @@
-using System.Drawing;
+﻿using System.Drawing;
 
 namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
 /// The legend, whether it describes series or pie slices.
 /// </summary>
-internal partial class InternalSvgRenderer
+/// <param name="canvas">The document this draws into.</param>
+internal sealed class LegendRenderer(SvgCanvas canvas)
 {
+	private readonly SvgCanvas _canvas = canvas;
+
 	/// <summary>
 	/// How far in from the left of the legend an entry starts, as a fraction of its width.
 	/// </summary>
@@ -28,7 +31,7 @@ internal partial class InternalSvgRenderer
 	/// three labels landed almost on top of one another. Swatch sizes were percentages of the
 	/// whole image rather than of the legend, so they drifted with the output size.
 	/// </remarks>
-	private void PlotLegends(Chart chart, XmlElement chartBackgroundAreaNode)
+	internal void PlotLegends(Chart chart, XmlElement chartBackgroundAreaNode)
 	{
 		if (chart.Legends.Count == 0 || chart.Series.Count == 0)
 		{
@@ -36,7 +39,7 @@ internal partial class InternalSvgRenderer
 		}
 
 		var legend = chart.Legends[0];
-		var legendXmlElement = GetGroup(legend, "legend", chart.ChartBackgroundArea);
+		var legendXmlElement = _canvas.PositionedGroup(legend, "legend", chart.ChartBackgroundArea);
 		chartBackgroundAreaNode.AppendChild(legendXmlElement);
 
 		var metrics = MetricsFor(legend);
@@ -69,8 +72,8 @@ internal partial class InternalSvgRenderer
 			or SeriesChartType.FastLine
 			or SeriesChartType.Spline
 			or SeriesChartType.StepLine;
-		var swatchHeight = isLine ? Math.Max(2, Math.Round(metrics.SwatchSize / 4, 2)) : metrics.SwatchSize;
-		var swatchTop = isLine ? swatchY + ((metrics.SwatchSize - swatchHeight) / 2) : swatchY;
+		var swatchHeight = isLine ? Math.Max(2, Math.Round(metrics.SwatchHeight / 4, 2)) : metrics.SwatchHeight;
+		var swatchTop = isLine ? swatchY + ((metrics.SwatchHeight - swatchHeight) / 2) : swatchY;
 
 		// A line series carries its identity in its stroke, a filled series in its fill.
 		var swatchColor = isLine
@@ -88,10 +91,10 @@ internal partial class InternalSvgRenderer
 		legendXmlElement.AppendChild(swatchNode);
 
 		legendXmlElement.AppendChild(
-			CreateTextNode(
+			_canvas.Text(
 				$"legendSeries{seriesIndex}Text",
 				swatchX + metrics.SwatchWidth + (metrics.Padding / 2),
-				swatchY + (metrics.SwatchSize / 2),
+				swatchY + (metrics.SwatchHeight / 2),
 				LegendTextFor(series),
 				HorizontalAlignment.Left,
 				VerticalAlignment.Middle,
@@ -137,7 +140,7 @@ internal partial class InternalSvgRenderer
 				+ entryWidths.Take(seriesIndex).Sum()
 				+ (gap * seriesIndex),
 			2);
-		var y = Math.Round((metrics.Height - metrics.SwatchSize) / 2, 2);
+		var y = Math.Round((metrics.Height - metrics.SwatchHeight) / 2, 2);
 		return (x, y);
 	}
 
@@ -157,7 +160,7 @@ internal partial class InternalSvgRenderer
 		=> (
 			Math.Round(metrics.Width * LegendInsetFraction, 2),
 			Math.Round(
-				RowCentre(metrics.Height, index, count, metrics.SwatchSize) - (metrics.SwatchSize / 2),
+				RowCentre(metrics.Height, index, count, metrics.SwatchHeight) - (metrics.SwatchHeight / 2),
 				2));
 
 	/// <summary>
@@ -168,7 +171,7 @@ internal partial class InternalSvgRenderer
 	/// named and there are usually more of them than a single row would fit. The rows share the
 	/// legend height the same way a series legend does.
 	/// </remarks>
-	private void PlotPieLegend(Chart chart, List<PieSlice> slices, XmlElement chartBackgroundAreaNode)
+	internal void PlotPieLegend(Chart chart, List<PieSlice> slices, XmlElement chartBackgroundAreaNode)
 	{
 		if (chart.Legends.Count == 0 || slices.Count == 0)
 		{
@@ -176,7 +179,7 @@ internal partial class InternalSvgRenderer
 		}
 
 		var legend = chart.Legends[0];
-		var legendXmlElement = GetGroup(legend, "legend", chart.ChartBackgroundArea);
+		var legendXmlElement = _canvas.PositionedGroup(legend, "legend", chart.ChartBackgroundArea);
 		chartBackgroundAreaNode.AppendChild(legendXmlElement);
 
 		var metrics = MetricsFor(legend);
@@ -187,17 +190,17 @@ internal partial class InternalSvgRenderer
 		{
 			var slice = slices[index];
 			var swatchY = Math.Round(
-				RowCentre(metrics.Height, index, slices.Count, metrics.SwatchSize) - (metrics.SwatchSize / 2),
+				RowCentre(metrics.Height, index, slices.Count, metrics.SwatchHeight) - (metrics.SwatchHeight / 2),
 				2);
 
 			legendXmlElement.AppendChild(
-				CreateSwatch(inset, swatchY, metrics.SwatchWidth, metrics.SwatchSize, slice.Color));
+				CreateSwatch(inset, swatchY, metrics.SwatchWidth, metrics.SwatchHeight, slice.Color));
 
 			legendXmlElement.AppendChild(
-				CreateTextNode(
+				_canvas.Text(
 					FormattableString.Invariant($"legendSlice{index}Text"),
 					inset + metrics.SwatchWidth + (metrics.Padding / 2),
-					swatchY + (metrics.SwatchSize / 2),
+					swatchY + (metrics.SwatchHeight / 2),
 					slice.LegendText,
 					HorizontalAlignment.Left,
 					VerticalAlignment.Middle,
@@ -210,7 +213,7 @@ internal partial class InternalSvgRenderer
 	/// </summary>
 	private XmlElement CreateSwatch(double x, double y, double width, double height, Color color)
 	{
-		var swatchNode = _xmlDocument.CreateElement(string.Empty, "rect", string.Empty);
+		var swatchNode = _canvas.Element("rect");
 		swatchNode.SetAttribute("x", x.ToString(CultureInfo.InvariantCulture));
 		swatchNode.SetAttribute("y", y.ToString(CultureInfo.InvariantCulture));
 		swatchNode.SetAttribute("width", width.ToString(CultureInfo.InvariantCulture));
@@ -220,41 +223,19 @@ internal partial class InternalSvgRenderer
 	}
 
 	/// <summary>
-	/// The pixel measurements a legend is laid out in.
+	/// The pixel measurements this legend is laid out in.
 	/// </summary>
 	private LegendMetrics MetricsFor(Legend legend)
-	{
-		var fontSize = legend.FontSize;
-		return new LegendMetrics(
-			Width: widthPixels * legend.GetCanvasWidthPercent() / 100,
-			Height: heightPixels * legend.GetCanvasHeightPercent() / 100,
-			FontSize: fontSize,
-			SwatchWidth: SwatchWidth(fontSize),
-			SwatchSize: SwatchHeight(fontSize),
-			Padding: Math.Round(fontSize * 0.5, 2));
-	}
+		=> LegendMetrics.For(
+			_canvas.WidthPixels * legend.GetCanvasWidthPercent() / 100,
+			_canvas.HeightPixels * legend.GetCanvasHeightPercent() / 100,
+			legend.FontSize);
 
 	/// <summary>
 	/// The style a legend label is drawn in.
 	/// </summary>
 	private static TextStyle LabelStyleFor(Legend legend)
 		=> TextStyle.Unstroked(legend.FontWeight, legend.FontFamily, legend.FontSize, legend.FontColor);
-
-	/// <summary>
-	/// The height of a legend swatch for a given font size.
-	/// </summary>
-	/// <remarks>
-	/// Measured on two legends against the reference render: a 12-point legend drew swatches 32 by
-	/// 14 and a 20-point one 52 by 23. Both are close to 2.6 and 1.15 times the font size, and the
-	/// shape matters - a square swatch, which is what this drew, is less than a third of the area
-	/// and reads as a different chart.
-	/// </remarks>
-	private static double SwatchHeight(double fontSize) => Math.Round(fontSize * 1.15, 2);
-
-	/// <summary>
-	/// The width of a legend swatch for a given font size.
-	/// </summary>
-	private static double SwatchWidth(double fontSize) => Math.Round(fontSize * 2.6, 2);
 
 	/// <summary>
 	/// A legend entry's text: its legend text where it has one, and its name otherwise.
@@ -288,20 +269,4 @@ internal partial class InternalSvgRenderer
 		return (legendHeight / 2) + ((index - ((count - 1) / 2.0)) * spacing);
 	}
 
-	/// <summary>
-	/// The pixel measurements a legend is laid out in.
-	/// </summary>
-	/// <param name="Width">The legend width, in pixels.</param>
-	/// <param name="Height">The legend height, in pixels.</param>
-	/// <param name="FontSize">The legend font size.</param>
-	/// <param name="SwatchWidth">The width of one swatch.</param>
-	/// <param name="SwatchSize">The height of one swatch.</param>
-	/// <param name="Padding">The gap used between a swatch and its label, and between entries.</param>
-	private readonly record struct LegendMetrics(
-		double Width,
-		double Height,
-		double FontSize,
-		double SwatchWidth,
-		double SwatchSize,
-		double Padding);
 }

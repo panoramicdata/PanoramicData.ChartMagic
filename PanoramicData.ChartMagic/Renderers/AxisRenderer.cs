@@ -1,10 +1,52 @@
-namespace PanoramicData.ChartMagic.Renderers;
+﻿namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
 /// The axis strips and the gridlines that belong to them.
 /// </summary>
-internal partial class InternalSvgRenderer
+/// <param name="canvas">The document the axes are drawn into.</param>
+internal sealed class AxisRenderer(SvgCanvas canvas)
 {
+	private readonly SvgCanvas _canvas = canvas;
+
+	/// <summary>
+	/// Gap between a tick mark and the label that belongs to it, in pixels.
+	/// </summary>
+	private const double TickLabelGapPixels = 4;
+
+	/// <summary>
+	/// A positioned group for an axis, aligned to the plot it annotates.
+	/// </summary>
+	/// <remarks>
+	/// An axis frame is not an independent rectangle: it has to line up with the inner plot along
+	/// the dimension they share, or the ticks and labels it draws point at the wrong values. The
+	/// axis areas carry their own defaults - 10% in and 90% long - which do not track the plot, so
+	/// a caller that moved the plot got axes that stayed put. Measured on a chart with the report
+	/// defaults: the value axis line was drawn from y 59 to 360 where the reference render drew it
+	/// from 40 to 339, exactly the 5% of the height by which the plot had moved.
+	///
+	/// The other dimension - how wide the value-axis strip is, how tall the category-axis strip -
+	/// stays with the axis area, since that is a real setting.
+	/// </remarks>
+	private XmlElement GetAxisGroup(Chart chart, AxisArea axis, string id)
+	{
+		var innerPlot = chart.ChartArea.InnerPlot;
+		var isVertical = ReferenceEquals(axis, chart.ChartArea.YAxis)
+			|| ReferenceEquals(axis, chart.ChartArea.YAxis2Area);
+
+		if (isVertical)
+		{
+			axis.YPositionPercent = innerPlot.YPositionPercent;
+			axis.HeightPercent = innerPlot.HeightPercent;
+		}
+		else
+		{
+			axis.XPositionPercent = innerPlot.XPositionPercent;
+			axis.WidthPercent = innerPlot.WidthPercent;
+		}
+
+		return _canvas.PositionedGroup(axis, id, chart.ChartArea);
+	}
+
 	/// <summary>
 	/// Draws gridlines across the plot for whichever axes asked for them.
 	/// </summary>
@@ -12,7 +54,7 @@ internal partial class InternalSvgRenderer
 	/// Issue #31: gridlines belong to the axis whose values they mark, so the Y axis draws
 	/// horizontal lines and the X axis vertical ones.
 	/// </remarks>
-	private void PlotGridlines(Chart chart, PlotGeometry geometry, XmlElement innerPlotNode)
+	internal void PlotGridlines(Chart chart, PlotGeometry geometry, XmlElement innerPlotNode)
 	{
 		var xAxis = chart.ChartArea.XAxis;
 		var yAxis = chart.ChartArea.YAxis;
@@ -22,7 +64,7 @@ internal partial class InternalSvgRenderer
 			return;
 		}
 
-		var gridNode = CreateGroup("gridlines");
+		var gridNode = _canvas.Group("gridlines");
 		innerPlotNode.AppendChild(gridNode);
 
 		PlotHorizontalGridlines(chart, geometry, yAxis, gridNode);
@@ -42,7 +84,7 @@ internal partial class InternalSvgRenderer
 			foreach (var value in MinorTicks(yAxis, geometry, isValueAxis: !geometry.IsHorizontalPlot))
 			{
 				var y = geometry.YToPixels(value);
-				gridNode.AppendChild(CreateLine(0, y, geometry.Width, y, yAxis.MinorGridColor, yAxis.GridWidth));
+				gridNode.AppendChild(_canvas.Line(0, y, geometry.Width, y, yAxis.MinorGridColor, yAxis.GridWidth));
 			}
 		}
 
@@ -54,7 +96,7 @@ internal partial class InternalSvgRenderer
 		foreach (var value in YAxisTickValues(chart, geometry))
 		{
 			var y = geometry.IsHorizontalPlot ? geometry.CategoryToPixels(value) : geometry.YToPixels(value);
-			gridNode.AppendChild(CreateLine(0, y, geometry.Width, y, yAxis.MajorGridColor, yAxis.GridWidth));
+			gridNode.AppendChild(_canvas.Line(0, y, geometry.Width, y, yAxis.MajorGridColor, yAxis.GridWidth));
 		}
 	}
 
@@ -67,7 +109,7 @@ internal partial class InternalSvgRenderer
 		{
 			foreach (var x in MinorGridPositions(xAxis, geometry))
 			{
-				gridNode.AppendChild(CreateLine(x, 0, x, geometry.Height, xAxis.MinorGridColor, xAxis.GridWidth));
+				gridNode.AppendChild(_canvas.Line(x, 0, x, geometry.Height, xAxis.MinorGridColor, xAxis.GridWidth));
 			}
 		}
 
@@ -79,14 +121,14 @@ internal partial class InternalSvgRenderer
 		foreach (var value in XAxisTickValues(chart, geometry))
 		{
 			var x = XAxisPixels(geometry, value);
-			gridNode.AppendChild(CreateLine(x, 0, x, geometry.Height, xAxis.MajorGridColor, xAxis.GridWidth));
+			gridNode.AppendChild(_canvas.Line(x, 0, x, geometry.Height, xAxis.MajorGridColor, xAxis.GridWidth));
 		}
 	}
 
 	/// <summary>
 	/// Draws the axis strips: their backgrounds, then the axis line, ticks, labels and title.
 	/// </summary>
-	private void PlotAxes(Chart chart, PlotGeometry geometry, XmlElement chartAreaNode)
+	internal void PlotAxes(Chart chart, PlotGeometry geometry, XmlElement chartAreaNode)
 	{
 		// X Axis
 		var xAxis = chart.ChartArea.XAxis;
@@ -114,9 +156,9 @@ internal partial class InternalSvgRenderer
 	/// </summary>
 	private void DrawXAxis(Chart chart, PlotGeometry geometry, AxisArea xAxis, XmlElement xAxisNode)
 	{
-		var axisHeight = heightPixels * xAxis.GetCanvasHeightPercent() / 100;
+		var axisHeight = _canvas.HeightPixels * xAxis.GetCanvasHeightPercent() / 100;
 
-		xAxisNode.AppendChild(CreateLine(0, 0, geometry.Width, 0, xAxis.LineColor, xAxis.LineWidth, xAxis.LineDashStyle));
+		xAxisNode.AppendChild(_canvas.Line(0, 0, geometry.Width, 0, xAxis.LineColor, xAxis.LineWidth, xAxis.LineDashStyle));
 
 		var tickLength = xAxis.TickLengthPixels;
 		var labelY = tickLength + TickLabelGapPixels;
@@ -126,14 +168,14 @@ internal partial class InternalSvgRenderer
 		foreach (var value in XAxisTickValues(chart, geometry))
 		{
 			var x = XAxisPixels(geometry, value);
-			xAxisNode.AppendChild(CreateLine(x, 0, x, tickLength, xAxis.LineColor, xAxis.LineWidth));
+			xAxisNode.AppendChild(_canvas.Line(x, 0, x, tickLength, xAxis.LineColor, xAxis.LineWidth));
 
 			var label = geometry.IsHorizontalPlot
 				? FormatAxisValue(value, xAxis)
 				: geometry.CategoryLabel(value) ?? FormatAxisValue(value, xAxis);
 
 			xAxisNode.AppendChild(
-				CreateTextNode(
+				_canvas.Text(
 					FormattableString.Invariant($"xAxisLabel{x}"),
 					x,
 					labelY,
@@ -149,7 +191,7 @@ internal partial class InternalSvgRenderer
 		if (xAxis.Title is { Length: > 0 })
 		{
 			xAxisNode.AppendChild(
-				CreateTextNode(
+				_canvas.Text(
 					"xAxisTitle",
 					geometry.Width / 2,
 					// Held clear of the bottom edge: on the baseline exactly, the descenders fall
@@ -168,9 +210,9 @@ internal partial class InternalSvgRenderer
 	/// </summary>
 	private void DrawYAxis(Chart chart, PlotGeometry geometry, AxisArea yAxis, XmlElement yAxisNode)
 	{
-		var axisWidth = widthPixels * yAxis.GetCanvasWidthPercent() / 100;
+		var axisWidth = _canvas.WidthPixels * yAxis.GetCanvasWidthPercent() / 100;
 
-		yAxisNode.AppendChild(CreateLine(axisWidth, 0, axisWidth, geometry.Height, yAxis.LineColor, yAxis.LineWidth, yAxis.LineDashStyle));
+		yAxisNode.AppendChild(_canvas.Line(axisWidth, 0, axisWidth, geometry.Height, yAxis.LineColor, yAxis.LineWidth, yAxis.LineDashStyle));
 
 		var tickLength = yAxis.TickLengthPixels;
 		var labelX = axisWidth - tickLength - TickLabelGapPixels;
@@ -180,14 +222,14 @@ internal partial class InternalSvgRenderer
 		{
 			var y = geometry.IsHorizontalPlot ? geometry.CategoryToPixels(value) : geometry.YToPixels(value);
 			yAxisNode.AppendChild(
-				CreateLine(axisWidth - tickLength, y, axisWidth, y, yAxis.LineColor, yAxis.LineWidth));
+				_canvas.Line(axisWidth - tickLength, y, axisWidth, y, yAxis.LineColor, yAxis.LineWidth));
 
 			var label = geometry.IsHorizontalPlot
 				? geometry.CategoryLabel(value) ?? FormatAxisValue(value, yAxis)
 				: FormatAxisValue(value, yAxis);
 
 			yAxisNode.AppendChild(
-				CreateTextNode(
+				_canvas.Text(
 					FormattableString.Invariant($"yAxisLabel{y}"),
 					labelX,
 					y,
@@ -203,7 +245,7 @@ internal partial class InternalSvgRenderer
 			// Rotated a quarter turn anticlockwise and centred on the axis, as a Y axis title
 			// conventionally reads.
 			yAxisNode.AppendChild(
-				CreateTextNode(
+				_canvas.Text(
 					"yAxisTitle",
 					yAxis.FontSize * 0.9,
 					geometry.Height / 2,

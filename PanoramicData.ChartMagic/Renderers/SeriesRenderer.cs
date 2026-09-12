@@ -1,25 +1,29 @@
-namespace PanoramicData.ChartMagic.Renderers;
+﻿namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
 /// The series themselves: lines, filled areas, and columns or bars.
 /// </summary>
-internal partial class InternalSvgRenderer
+/// <param name="canvas">The document this draws into.</param>
+internal sealed class SeriesRenderer(SvgCanvas canvas)
 {
-	private void PlotSeries(Chart chart, PlotGeometry geometry, XmlElement defs, XmlElement innerPlotNode)
+	private readonly SvgCanvas _canvas = canvas;
+	private readonly MarkerFactory _markers = new(canvas);
+
+	internal void PlotSeries(Chart chart, PlotGeometry geometry, XmlElement defs, XmlElement innerPlotNode)
 	{
 		var stackedColumnTotals = new Dictionary<string, double>();
 		var stackedAreaTotals = new Dictionary<string, double>();
-		var stackLines = CreateGroup("stackLines");
+		var stackLines = _canvas.Group("stackLines");
 		var bands = BandLayout.For(chart);
 
 		var seriesIndex = -1;
 		foreach (var series in chart.Series)
 		{
-			var seriesNode = CreateGroup($"series{++seriesIndex}");
+			var seriesNode = _canvas.Group($"series{++seriesIndex}");
 
 			// Add markers to defs if required
 			var seriesMarkerId = $"series{seriesIndex}Marker";
-			var markerDefinition = CreateMarkerDefinition(series, seriesMarkerId);
+			var markerDefinition = _markers.CreateMarkerDefinition(series, seriesMarkerId);
 			if (markerDefinition is not null)
 			{
 				defs.AppendChild(markerDefinition);
@@ -83,25 +87,40 @@ internal partial class InternalSvgRenderer
 	{
 		var trace = TracePoints(geometry, series, stackTotals, markerId);
 
-		switch (series.ChartType)
+		if (FillsBeneathItsLine(series.ChartType))
 		{
-			case SeriesChartType.Area:
-				seriesNode.AppendChild(CreateAreaNode(geometry, series, trace));
-				AppendLinePath(seriesNode, series, trace);
-				break;
+			seriesNode.AppendChild(CreateAreaNode(geometry, series, trace));
+		}
 
-			case SeriesChartType.StackedArea:
-			case SeriesChartType.StackedArea100:
-				seriesNode.AppendChild(CreateAreaNode(geometry, series, trace));
-				AppendLinePath(stackLines, series, trace);
-				break;
-
-			case SeriesChartType.Line:
-			case SeriesChartType.FastLine:
-				AppendLinePath(seriesNode, series, trace);
-				break;
+		var lineTarget = LineTarget(series.ChartType, seriesNode, stackLines);
+		if (lineTarget is not null)
+		{
+			AppendLinePath(lineTarget, series, trace);
 		}
 	}
+
+	/// <summary>
+	/// Whether this chart type hangs a filled area beneath the line it traces.
+	/// </summary>
+	private static bool FillsBeneathItsLine(SeriesChartType chartType)
+		=> chartType is SeriesChartType.Area
+			or SeriesChartType.StackedArea
+			or SeriesChartType.StackedArea100;
+
+	/// <summary>
+	/// The group a series' line belongs in, or null for a chart type that draws no line.
+	/// </summary>
+	/// <remarks>
+	/// A stacked area puts its line in the shared group rather than its own, so that every line
+	/// is drawn over every fill rather than being buried by the next series.
+	/// </remarks>
+	private static XmlElement? LineTarget(SeriesChartType chartType, XmlElement seriesNode, XmlElement stackLines)
+		=> chartType switch
+		{
+			SeriesChartType.Area or SeriesChartType.Line or SeriesChartType.FastLine => seriesNode,
+			SeriesChartType.StackedArea or SeriesChartType.StackedArea100 => stackLines,
+			_ => null
+		};
 
 	/// <summary>
 	/// Walks a series' points once, building the paths, the stack return path and the markers.
@@ -144,7 +163,7 @@ internal partial class InternalSvgRenderer
 
 			if (series.MarkerStyle != MarkerStyle.None)
 			{
-				markerNodes.Add(CreateMarkerReference(markerId, xPosition, yPosition));
+				markerNodes.Add(_markers.CreateMarkerReference(markerId, xPosition, yPosition));
 			}
 		}
 
@@ -231,7 +250,7 @@ internal partial class InternalSvgRenderer
 		areaPath.Append(string.Join("", returnPathPoints.AsEnumerable().Reverse().Select(p => $"L{p.X} {p.Y}")));
 		areaPath.Append('Z');
 
-		var areaNode = _xmlDocument.CreateElement(string.Empty, "path", string.Empty);
+		var areaNode = _canvas.Element("path");
 		areaNode.SetAttribute("d", areaPath.ToString());
 		areaNode.SetStyle(series, applyStroke: false);
 		return areaNode;
@@ -242,7 +261,7 @@ internal partial class InternalSvgRenderer
 	/// </summary>
 	private void AppendLinePath(XmlElement target, Series series, SeriesTrace trace)
 	{
-		var pathNode = _xmlDocument.CreateElement(string.Empty, "path", string.Empty);
+		var pathNode = _canvas.Element("path");
 		pathNode.SetAttribute("d", trace.LinePath);
 		pathNode.SetStyle(series, applyFill: false);
 		target.AppendChild(pathNode);
@@ -326,7 +345,7 @@ internal partial class InternalSvgRenderer
 	/// </summary>
 	private XmlElement CreateBandRect(bool isHorizontal, double from, double to, double slotStart, double slotExtent)
 	{
-		var rectNode = _xmlDocument.CreateElement(string.Empty, "rect", string.Empty);
+		var rectNode = _canvas.Element("rect");
 		var near = Math.Round(Math.Min(from, to), 2).ToString(CultureInfo.InvariantCulture);
 		var extent = Math.Round(Math.Abs(to - from), 2).ToString(CultureInfo.InvariantCulture);
 		var across = Math.Round(slotStart, 2).ToString(CultureInfo.InvariantCulture);
