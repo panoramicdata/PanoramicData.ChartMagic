@@ -19,7 +19,7 @@
     <PackageVersion Include="Svg" Version="3.4.8" />
     <PackageVersion Include="Svg.Skia" Version="5.2.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
-    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+    <PackageVersion Include="xunit.v3" Version="4.0.1" />
     <PackageVersion Include="PanoramicData.Blazor" Version="10.0.215" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
   </ItemGroup>
