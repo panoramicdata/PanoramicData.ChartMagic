@@ -221,6 +221,33 @@ public class DataLabelAndFunnelTests
 	}
 
 	[Fact]
+	public void Funnel_LabelsAreDrawnInTheSeriesFontColor()
+	{
+		// SeriesSpecification had no label colour, so series labels were always black: unreadable
+		// on a dark background, whatever the caller wanted.
+		var specification = Funnel("#VALX");
+		specification.SeriesList[0].FontColor = Color.Red;
+
+		Elements(GroupById(Render(specification), "funnel"), "text")
+			.Should().NotBeEmpty()
+			.And.AllSatisfy(label => label.Attribute("fill")!.Value.Should().BeEquivalentTo("#FF0000"));
+	}
+
+	[Fact]
+	public void ColumnChart_DataLabelsAreDrawnInTheSeriesFontColor()
+	{
+		var specification = SingleSeries(SeriesChartType.Column, Points(10, 24), s =>
+		{
+			s.LabelText = "#VAL";
+			s.FontColor = Color.Red;
+		});
+
+		DataLabels(Render(specification))
+			.Should().NotBeEmpty()
+			.And.AllSatisfy(label => label.Attribute("fill")!.Value.Should().BeEquivalentTo("#FF0000"));
+	}
+
+	[Fact]
 	public void Funnel_DrawsNoAxes()
 		=> FindGroupById(Render(Funnel()), "xAxis").Should().BeNull("a funnel is not drawn against axes");
 }

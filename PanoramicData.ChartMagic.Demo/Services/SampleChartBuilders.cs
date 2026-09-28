@@ -398,6 +398,46 @@ internal static class SampleChartBuilders
 		};
 	}
 
+	internal static ChartSpecification BuildFunnel()
+	{
+		var colours = new[]
+		{
+			Color.SteelBlue,
+			Color.SeaGreen,
+			Color.Goldenrod,
+			Color.IndianRed,
+			Color.MediumPurple
+		};
+		var stages = new[] { "Visitors", "Sign-ups", "Trials", "Quotes", "Customers" };
+		// A shallow funnel on purpose. Segment heights are proportional to the values and labels
+		// are not moved apart when they collide, so a realistic steep funnel overlaps its last
+		// labels.
+		var values = new double[] { 1000, 820, 610, 430, 260 };
+
+		return new ChartSpecification
+		{
+			SeriesList =
+			[
+				new()
+				{
+					ChartType = SeriesChartType.Funnel,
+					StrokeColor = Color.White,
+					StrokeWidth = 1,
+					LabelText = "#VALX: #VALY",
+					FontSize = 13,
+					Points =
+					[
+						.. values.Select((value, index) => new ChartPoint(
+							stages[index],
+							index,
+							value,
+							colours[index]))
+					]
+				}
+			]
+		};
+	}
+
 	internal static ChartSpecification BuildCollectedPie()
 	{
 		var specification = BuildPie(SeriesChartType.Pie);

@@ -365,6 +365,7 @@ public class ChartSpecification
 		{
 			ChartType = seriesSpec.ChartType,
 			FillColor = seriesSpec.FillColor,
+			FontColor = seriesSpec.FontColor,
 			FontSize = seriesSpec.FontSize,
 			HeightPercent = chart.ChartArea.InnerPlot.HeightPercent,
 			IsXValueIndexed = seriesSpec.IsXValueIndexed,

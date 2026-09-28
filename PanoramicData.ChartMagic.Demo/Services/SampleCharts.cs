@@ -89,6 +89,14 @@ public static class SampleCharts
 		SetIfDefault(specification, nameof(ChartSpecification.XAxisFontSize), 12d);
 		SetIfDefault(specification, nameof(ChartSpecification.YAxisFontSize), 12d);
 		SetIfDefault(specification, nameof(ChartSpecification.LegendFontSize), 13d);
+
+		// Series labels - funnel and outside pie labels, data labels - default to black, which
+		// cannot be read on the dark page. Only the default is replaced, as above.
+		var defaultSeries = new SeriesSpecification();
+		foreach (var series in specification.SeriesList.Where(series => series.FontColor == defaultSeries.FontColor))
+		{
+			series.FontColor = theme.AxisLabel;
+		}
 	}
 
 	/// <summary>
@@ -296,5 +304,13 @@ public static class SampleCharts
 			+ "smallest slices fall below a 15% threshold and are combined into one.",
 			SampleStatus.Working,
 			BuildCollectedPie()),
+
+		new(
+			"Funnel",
+			"A sales funnel: one segment per stage, stacked top to bottom and narrowing to a neck. "
+			+ "Each segment's height is proportional to its value, and its label sits in a column "
+			+ "to the right on a leader line, as the Microsoft chart control's default funnel does.",
+			SampleStatus.Working,
+			BuildFunnel()),
 	];
 }

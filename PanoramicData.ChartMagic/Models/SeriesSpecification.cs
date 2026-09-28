@@ -15,6 +15,11 @@ public class SeriesSpecification
 	public string? LabelText { get; set; }
 	public string? LegendText { get; set; }
 	public double FontSize { get; set; } = 20;
+	/// <summary>
+	/// The colour of this series' labels: data labels, pie labels and funnel labels. Black, as the
+	/// Microsoft chart control's default.
+	/// </summary>
+	public Color FontColor { get; set; } = Color.Black;
 	public ChartDashStyle StrokeStyle { get; set; } = ChartDashStyle.Solid;
 	public MarkerStyle MarkerStyle { get; set; } = MarkerStyle.None;
 	public Color? MarkerStrokeColor { get; set; }
