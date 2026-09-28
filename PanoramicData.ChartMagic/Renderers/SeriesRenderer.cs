@@ -14,12 +14,14 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 		var stackedColumnTotals = new Dictionary<string, double>();
 		var stackedAreaTotals = new Dictionary<string, double>();
 		var stackLines = _canvas.Group("stackLines");
+		var dataLabels = _canvas.Group("dataLabels");
 		var bands = BandLayout.For(chart);
 
 		var seriesIndex = -1;
 		foreach (var series in chart.Series)
 		{
 			var seriesNode = _canvas.Group($"series{++seriesIndex}");
+			List<DataLabelAnchor> labelAnchors;
 
 			// Add markers to defs if required
 			var seriesMarkerId = $"series{seriesIndex}Marker";
@@ -33,19 +35,75 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 
 			if (PlotGeometry.IsBanded(series.ChartType))
 			{
-				PlotBandedSeries(chart, geometry, series, seriesNode, stackTotals, bands.SlotFor(series), bands.SlotCount);
+				labelAnchors = PlotBandedSeries(chart, geometry, series, seriesNode, stackTotals, bands.SlotFor(series), bands.SlotCount);
 			}
 			else
 			{
-				PlotPointSeries(geometry, series, seriesNode, stackLines, stackTotals, seriesMarkerId);
+				labelAnchors = PlotPointSeries(geometry, series, seriesNode, stackLines, stackTotals, seriesMarkerId);
 			}
 
 			innerPlotNode.AppendChild(seriesNode);
+			AppendDataLabels(series, seriesIndex, labelAnchors, dataLabels);
 		}
 
 		if (stackLines.ChildNodes.Count != 0)
 		{
 			innerPlotNode.AppendChild(stackLines);
+		}
+
+		// Last, so that no series is drawn over another series' labels.
+		if (dataLabels.ChildNodes.Count != 0)
+		{
+			innerPlotNode.AppendChild(dataLabels);
+		}
+	}
+
+	/// <summary>
+	/// The gap between a data label and the thing it labels, as a fraction of the label's font size.
+	/// </summary>
+	/// <remarks>
+	/// Measured against DocMagic on the [List.Graph:] mixed column and line example: with 16px
+	/// labels, the bottom of each column label sat about 8px above the top of its column.
+	/// </remarks>
+	private const double DataLabelGapFraction = 0.5;
+
+	/// <summary>
+	/// Draws one series' data labels, from its label text, beside the points it drew.
+	/// </summary>
+	/// <remarks>
+	/// Label text was carried on every series and drawn only for pies, so labelText=#VAL on a
+	/// column, bar or line chart produced a chart with no labels and no error. A series with no
+	/// label text draws no labels, as in the Microsoft chart control.
+	/// </remarks>
+	private void AppendDataLabels(Series series, int seriesIndex, List<DataLabelAnchor> anchors, XmlElement dataLabels)
+	{
+		if (series.LabelText is not { Length: > 0 } || anchors.Count == 0)
+		{
+			return;
+		}
+
+		var total = anchors.Sum(anchor => Math.Abs(anchor.Value));
+		var style = TextStyle.Unstroked(series.FontWeight, series.FontFamily, series.FontSize, series.FontColor);
+
+		var pointIndex = 0;
+		foreach (var anchor in anchors)
+		{
+			var percentage = total == 0 ? 0 : Math.Abs(anchor.Value) / total * 100;
+			var text = DataLabelText.Substitute(series.LabelText, anchor.Point, anchor.Value, series.Name, percentage, total);
+			if (text is not { Length: > 0 })
+			{
+				continue;
+			}
+
+			dataLabels.AppendChild(
+				_canvas.Text(
+					FormattableString.Invariant($"series{seriesIndex}Label{pointIndex++}"),
+					anchor.X,
+					anchor.Y,
+					text,
+					anchor.HorizontalAlignment,
+					anchor.VerticalAlignment,
+					style));
 		}
 	}
 
@@ -77,7 +135,8 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 	/// A stacked area draws its fill in its own group and its line in the shared one, so that
 	/// every line is drawn over every fill rather than being buried by the next series.
 	/// </remarks>
-	private void PlotPointSeries(
+	/// <returns>Where each point's data label goes.</returns>
+	private List<DataLabelAnchor> PlotPointSeries(
 		PlotGeometry geometry,
 		Series series,
 		XmlElement seriesNode,
@@ -97,6 +156,8 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 		{
 			AppendLinePath(lineTarget, series, trace);
 		}
+
+		return trace.LabelAnchors;
 	}
 
 	/// <summary>
@@ -139,7 +200,12 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 		var lastXPosition = 0d;
 		var returnPathPoints = new List<(double X, double Y)>();
 		var markerNodes = new List<XmlElement>();
+		var labelAnchors = new List<DataLabelAnchor>();
 		var isFirstPoint = true;
+
+		// A label sits above its point, clear of the marker where there is one.
+		var labelLift = (series.MarkerStyle != MarkerStyle.None ? (series.MarkerSize ?? 0) / 2 : 0)
+			+ (series.FontSize * DataLabelGapFraction);
 
 		foreach (var chartPoint in series.Points)
 		{
@@ -165,6 +231,17 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 			{
 				markerNodes.Add(_markers.CreateMarkerReference(markerId, xPosition, yPosition));
 			}
+
+			if (chartPoint.YValue is { } pointValue)
+			{
+				labelAnchors.Add(new DataLabelAnchor(
+					chartPoint,
+					pointValue,
+					xPosition,
+					yPosition - labelLift,
+					HorizontalAlignment.Center,
+					VerticalAlignment.Bottom));
+			}
 		}
 
 		return new SeriesTrace(
@@ -173,7 +250,8 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 			firstXPosition,
 			lastXPosition,
 			returnPathPoints,
-			markerNodes);
+			markerNodes,
+			labelAnchors);
 	}
 
 	/// <summary>
@@ -281,7 +359,8 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 	/// column chart rendered its legend and nothing else - no exception, no empty-plot warning,
 	/// just a blank plot area beside a correct-looking legend.
 	/// </remarks>
-	private void PlotBandedSeries(
+	/// <returns>Where each point's data label goes.</returns>
+	private List<DataLabelAnchor> PlotBandedSeries(
 		Chart chart,
 		PlotGeometry geometry,
 		Series series,
@@ -295,10 +374,12 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 		var slotExtent = groupExtent / slotCount;
 		var origin = geometry.ValueAxisOrigin;
 		var isHorizontal = PlotGeometry.IsHorizontal(series.ChartType);
+		var labelAnchors = new List<DataLabelAnchor>();
+		var gap = series.FontSize * DataLabelGapFraction;
 
 		foreach (var chartPoint in series.Points)
 		{
-			if (chartPoint.YValue is null)
+			if (chartPoint.YValue is not { } pointValue)
 			{
 				continue;
 			}
@@ -309,7 +390,61 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 			var rectNode = CreateBandRect(isHorizontal, from, to, slotStart, slotExtent);
 			rectNode.SetStyle(series);
 			seriesNode.AppendChild(rectNode);
+
+			labelAnchors.Add(BandLabelAnchor(
+				chartPoint,
+				pointValue,
+				isHorizontal,
+				stackTotals is not null,
+				from,
+				to,
+				slotStart + (slotExtent / 2),
+				gap));
 		}
+
+		return labelAnchors;
+	}
+
+	/// <summary>
+	/// Where a column or bar's data label goes.
+	/// </summary>
+	/// <remarks>
+	/// As measured against DocMagic on the [List.Graph:] examples: a column's label is centred just
+	/// above its top, and a bar's is just beyond its end, reading outwards. A negative value's label
+	/// goes beyond its end on the other side. A stacked segment's label is centred in the segment,
+	/// because outside it would sit on the next segment up.
+	/// </remarks>
+	private static DataLabelAnchor BandLabelAnchor(
+		ChartPoint point,
+		double value,
+		bool isHorizontal,
+		bool isStacked,
+		double from,
+		double to,
+		double across,
+		double gap)
+	{
+		if (isStacked)
+		{
+			var middle = (from + to) / 2;
+			return isHorizontal
+				? new DataLabelAnchor(point, value, middle, across, HorizontalAlignment.Center, VerticalAlignment.Middle)
+				: new DataLabelAnchor(point, value, across, middle, HorizontalAlignment.Center, VerticalAlignment.Middle);
+		}
+
+		// Pixel positions grow rightwards and downwards, so the far end of a positive bar is the
+		// larger X, and the far end of a positive column is the smaller Y.
+		var isNegative = value < 0;
+		if (isHorizontal)
+		{
+			return isNegative
+				? new DataLabelAnchor(point, value, Math.Min(from, to) - gap, across, HorizontalAlignment.Right, VerticalAlignment.Middle)
+				: new DataLabelAnchor(point, value, Math.Max(from, to) + gap, across, HorizontalAlignment.Left, VerticalAlignment.Middle);
+		}
+
+		return isNegative
+			? new DataLabelAnchor(point, value, across, Math.Max(from, to) + gap, HorizontalAlignment.Center, VerticalAlignment.Top)
+			: new DataLabelAnchor(point, value, across, Math.Min(from, to) - gap, HorizontalAlignment.Center, VerticalAlignment.Bottom);
 	}
 
 	/// <summary>

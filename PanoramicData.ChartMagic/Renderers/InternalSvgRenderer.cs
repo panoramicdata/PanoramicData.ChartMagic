@@ -33,7 +33,15 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 		// A pie has no axes, so it takes a different path entirely: no gridlines, no axis
 		// strips, and a legend that describes slices rather than series.
 		var pieSeries = chart.Series.FirstOrDefault(PieRenderer.IsPie);
-		if (pieSeries is not null)
+		var funnelSeries = chart.Series.FirstOrDefault(FunnelRenderer.IsFunnel);
+		if (funnelSeries is not null)
+		{
+			// A funnel has no axes either, and like a pie its legend describes points, not series.
+			var segments = PieSliceBuilder.Build(funnelSeries);
+			new FunnelRenderer(_canvas).Plot(funnelSeries, segments, innerPlotNode, geometry.Width, geometry.Height);
+			legends.PlotPieLegend(chart, segments, chartBackgroundAreaNode);
+		}
+		else if (pieSeries is not null)
 		{
 			var slices = PieSliceBuilder.Build(pieSeries);
 			new PieRenderer(_canvas).Plot(pieSeries, slices, innerPlotNode, geometry.Width, geometry.Height);
