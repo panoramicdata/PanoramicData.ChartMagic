@@ -26,10 +26,12 @@ jobs:
     - name: Publish
       run: dotnet publish PanoramicData.ChartMagic.Demo/PanoramicData.ChartMagic.Demo.csproj --configuration Release --output release --nologo
 
-    # Pages serves the site from a repository subdirectory, so the base href has to match or
-    # every asset request 404s.
-    - name: Rewrite base href for the Pages subdirectory
-      run: sed -i 's|<base href="/" />|<base href="/PanoramicData.ChartMagic/" />|g' release/wwwroot/index.html
+    # The site is served at the root of its custom domain, so the base href stays "/", the same
+    # as the project's own index.html. The github.io address redirects there. Pages reads the
+    # custom domain from this file on the deployed branch, and every deploy replaces that branch
+    # whole, so the file is written on every run: without it the domain would be dropped.
+    - name: Set the custom domain
+      run: echo "chartmagic.panoramicdata.com" > release/wwwroot/CNAME
 
     # The stylesheet is linked by a fixed name, so a browser holding the previous one keeps
     # using it: new markup against old rules renders unstyled tables, a white chart panel and

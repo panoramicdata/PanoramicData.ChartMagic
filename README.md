@@ -11,7 +11,8 @@ An open source, charting nuget package.  Renders to vector and bitmap formats.
 
 `PanoramicData.ChartMagic.Demo` is a WebAssembly page showing one chart per tab, with every
 property of the `ChartSpecification` editable beside it. It is published from `main` to
-<https://panoramicdata.github.io/PanoramicData.ChartMagic/>.
+<https://chartmagic.panoramicdata.com/> (the GitHub Pages address, <https://panoramicdata.github.io/PanoramicData.ChartMagic/>,
+redirects there).
 
 ### Comparing against a DocMagic server (local development only)
 
