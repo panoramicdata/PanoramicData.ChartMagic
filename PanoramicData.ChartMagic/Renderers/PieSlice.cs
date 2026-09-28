@@ -167,7 +167,7 @@ internal static class PieSliceBuilder
 	private static string LabelFor(Series series, ChartPoint point, double value, double percentage, double total)
 		=> series.PieLabelStyle == Models.PieLabelStyle.Disabled
 			? string.Empty
-			: Substitute(series.LabelText, point, value, percentage, total)
+			: DataLabelText.Substitute(series.LabelText, point, value, series.Name, percentage, total)
 				// The category name, not the value. Measured against DocMagic: with no label text
 				// set, the Microsoft chart control labels a pie slice with its X value, so a pie of
 				// cities reads London, Manchester rather than 34, 26.
@@ -178,27 +178,4 @@ internal static class PieSliceBuilder
 		=> point.LegendText
 			?? point.XValueString
 			?? value.ToString("0.##", CultureInfo.InvariantCulture);
-
-	/// <summary>
-	/// Replaces the Microsoft chart keywords that appear in report templates.
-	/// </summary>
-	/// <remarks>
-	/// The keyword set is deliberately small: these four are what appears in practice. An
-	/// unrecognised keyword is left in place rather than blanked, so that it shows up as itself
-	/// on the chart instead of vanishing silently.
-	/// </remarks>
-	private static string? Substitute(string? text, ChartPoint point, double value, double percentage, double total)
-	{
-		if (text is not { Length: > 0 })
-		{
-			return null;
-		}
-
-		return text
-			.Replace("#VALX", point.XValueString ?? point.XValue.ToString("0.##", CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase)
-			.Replace("#VALY", value.ToString("0.##", CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase)
-			.Replace("#PERCENT", percentage.ToString("0.00", CultureInfo.InvariantCulture) + "%", StringComparison.OrdinalIgnoreCase)
-			.Replace("#TOTAL", total.ToString("0.##", CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase)
-			.Replace("#LEGENDTEXT", point.LegendText ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-	}
 }

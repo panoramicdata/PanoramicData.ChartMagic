@@ -23,10 +23,15 @@ namespace PanoramicData.ChartMagic.Renderers.RenderModels;
 /// are collected rather than appended as they are found so that the caller decides which group
 /// they belong in.
 /// </param>
+/// <param name="LabelAnchors">
+/// Where each point with a value was drawn, with the value it was drawn at, so that its data label
+/// can be placed beside it once every series is down.
+/// </param>
 internal sealed record SeriesTrace(
 	string LinePath,
 	string AreaSegments,
 	double? FirstXPosition,
 	double LastXPosition,
 	List<(double X, double Y)> ReturnPathPoints,
-	List<XmlElement> MarkerNodes);
+	List<XmlElement> MarkerNodes,
+	List<DataLabelAnchor> LabelAnchors);
