@@ -1,4 +1,4 @@
-﻿namespace PanoramicData.ChartMagic.Renderers;
+namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
 /// Maps data values onto pixel positions inside the inner plot, and answers the questions the
@@ -37,6 +37,7 @@ internal sealed class PlotGeometry
 		IsHorizontalPlot = bandedSeries.Count > 0
 			&& bandedSeries.TrueForAll(series => IsHorizontal(series.ChartType));
 		YIsLogarithmic = chart.ChartArea.YAxis.IsLogarithmic;
+		IsMarginVisible = chart.ChartArea.XAxis.IsMarginVisible;
 		PopulateCategories(chart);
 
 		IsPercentStackedPlot = chart.Series.Any(series => IsPercentStacked(series.ChartType));
@@ -158,6 +159,12 @@ internal sealed class PlotGeometry
 
 	internal bool IsCategorical { get; }
 
+	/// <summary>
+	/// Whether the category axis leaves an interval free at each end. Read from the X axis area for
+	/// bar charts too, since it is a property of the category axis wherever that is drawn.
+	/// </summary>
+	internal bool IsMarginVisible { get; }
+
 	internal bool YIsLogarithmic { get; }
 
 	/// <summary>Whether the category axis runs vertically, as it does for bar charts.</summary>
@@ -218,7 +225,17 @@ internal sealed class PlotGeometry
 	/// either chart type. Column groups were therefore drawn up to 27 pixels away from where they
 	/// belonged, and proportionally wider with it.
 	/// </remarks>
-	private int CategoryIntervalCount => _categories.Count + 1;
+	/// <remarks>
+	/// Without the margin, the first and last categories sit on the ends of the axis, so there are
+	/// one fewer intervals than categories. A single category is then centred.
+	/// </remarks>
+	private int CategoryIntervalCount => IsMarginVisible ? _categories.Count + 1 : _categories.Count > 1 ? _categories.Count - 1 : 2;
+
+	/// <summary>
+	/// How many intervals along the axis the category at this index is.
+	/// </summary>
+	private double CategoryOffset(int index)
+		=> IsMarginVisible ? index + 1 : _categories.Count == 1 ? 1 : index;
 
 	/// <summary>
 	/// The width of one category interval, or zero when the axis is not categorical.
@@ -290,7 +307,7 @@ internal sealed class PlotGeometry
 			index = 0;
 		}
 
-		var distanceAlongAxis = (index + 1) * CategoryBandExtent;
+		var distanceAlongAxis = CategoryOffset(index) * CategoryBandExtent;
 
 		// Distances are measured down the plot, so an axis that runs upwards is that distance
 		// taken from the far edge.
@@ -334,7 +351,7 @@ internal sealed class PlotGeometry
 				index = 0;
 			}
 
-			return Math.Round((index + 1) * BandWidth, 2);
+			return Math.Round(CategoryOffset(index) * BandWidth, 2);
 		}
 
 		return IsNearlyZero(_xDisplayRange)

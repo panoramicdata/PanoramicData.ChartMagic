@@ -20,6 +20,7 @@ internal static class DataLabelText
 	/// <param name="seriesName">The name of the series the point belongs to.</param>
 	/// <param name="percentage">The point's share of the series total, 0 to 100.</param>
 	/// <param name="total">The series total.</param>
+	/// <param name="culture">The culture numbers are written in; invariant when null.</param>
 	/// <remarks>
 	/// The keyword set is deliberately small: these are what appears in practice. An unrecognised
 	/// keyword is left in place rather than blanked, so that it shows up as itself on the chart
@@ -34,21 +35,23 @@ internal static class DataLabelText
 		double value,
 		string? seriesName,
 		double percentage,
-		double total)
+		double total,
+		CultureInfo? culture = null)
 	{
 		if (text is not { Length: > 0 })
 		{
 			return null;
 		}
 
-		var formattedValue = FormatNumber(value);
+		culture ??= CultureInfo.InvariantCulture;
+		var formattedValue = FormatNumber(value, culture);
 
 		return text
-			.Replace("#VALX", point.XValueString ?? FormatNumber(point.XValue), StringComparison.OrdinalIgnoreCase)
+			.Replace("#VALX", point.XValueString ?? FormatNumber(point.XValue, culture), StringComparison.OrdinalIgnoreCase)
 			.Replace("#VALY", formattedValue, StringComparison.OrdinalIgnoreCase)
 			.Replace("#VAL", formattedValue, StringComparison.OrdinalIgnoreCase)
-			.Replace("#PERCENT", percentage.ToString("0.00", CultureInfo.InvariantCulture) + "%", StringComparison.OrdinalIgnoreCase)
-			.Replace("#TOTAL", FormatNumber(total), StringComparison.OrdinalIgnoreCase)
+			.Replace("#PERCENT", percentage.ToString("0.00", culture) + "%", StringComparison.OrdinalIgnoreCase)
+			.Replace("#TOTAL", FormatNumber(total, culture), StringComparison.OrdinalIgnoreCase)
 			.Replace("#LEGENDTEXT", point.LegendText ?? string.Empty, StringComparison.OrdinalIgnoreCase)
 			.Replace("#SERIESNAME", seriesName ?? string.Empty, StringComparison.OrdinalIgnoreCase)
 			.Replace("#SER", seriesName ?? string.Empty, StringComparison.OrdinalIgnoreCase);
@@ -57,5 +60,5 @@ internal static class DataLabelText
 	/// <summary>
 	/// A number as a label shows it: up to two decimal places, and none when it is whole.
 	/// </summary>
-	internal static string FormatNumber(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+	internal static string FormatNumber(double value, CultureInfo culture) => value.ToString("0.##", culture);
 }

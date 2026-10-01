@@ -130,6 +130,12 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 				? OutsidePieLabelPosition(centreX, centreY, radius, slice)
 				: InsidePieLabelPosition(centreX, centreY, radius, innerRadius, slice);
 
+			if (series.LabelBackColor is { A: > 0 } background)
+			{
+				pieNode.AppendChild(
+					_canvas.TextBackground(at.X, at.Y, slice.Label, alignment, VerticalAlignment.Middle, labelStyle, background));
+			}
+
 			pieNode.AppendChild(
 				_canvas.Text(
 					FormattableString.Invariant($"pieLabel{slice.StartAngleDegrees:F2}"),

@@ -146,6 +146,55 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 			_ => throw new NotSupportedException($"Unsupported HorizontalAlignment {horizontalAlignment}.")
 		};
 
+	/// <summary>
+	/// A filled rectangle behind a piece of text drawn by <see cref="Text"/> with the same arguments.
+	/// </summary>
+	/// <remarks>
+	/// Sized from the measured text with a little padding, and placed from the same alignment the
+	/// text is, so the two stay together whichever way the label is anchored.
+	/// </remarks>
+	internal XmlElement TextBackground(
+		double x,
+		double y,
+		string text,
+		HorizontalAlignment horizontalAlignment,
+		VerticalAlignment verticalAlignment,
+		TextStyle style,
+		Color color)
+	{
+		const double padding = 2;
+		var width = TextMeasure.Width(text, style.FontSize, style.FontWeight) + (2 * padding);
+		var height = style.FontSize * 1.2;
+
+		var left = horizontalAlignment switch
+		{
+			HorizontalAlignment.Left => x - padding,
+			HorizontalAlignment.Right => x - width + padding,
+			_ => x - (width / 2)
+		};
+
+		// From where the glyphs' visual centre ends up for each alignment; see BaselineOffset.
+		var centre = verticalAlignment switch
+		{
+			VerticalAlignment.Top => y + (style.FontSize * 0.5),
+			VerticalAlignment.Bottom => y - (style.FontSize * 0.3),
+			_ => y
+		};
+
+		var rect = Element("rect");
+		rect.SetAttribute("x", N(left));
+		rect.SetAttribute("y", N(centre - (height / 2)));
+		rect.SetAttribute("width", N(width));
+		rect.SetAttribute("height", N(height));
+		rect.SetAttribute("fill", color.ToHex());
+		if (color.A != 255)
+		{
+			rect.SetAttribute("fill-opacity", (color.A / 255f).ToString("F2", CultureInfo.InvariantCulture));
+		}
+
+		return rect;
+	}
+
 	internal double RelativePositionY(ChartNamedElement chartNamedElement, double yPositionPercent)
 		=> heightPixels * (100 - (yPositionPercent * chartNamedElement.GetCanvasHeightPercent() / 100)) / 100;
 

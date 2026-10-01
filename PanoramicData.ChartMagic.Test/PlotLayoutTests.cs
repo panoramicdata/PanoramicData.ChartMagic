@@ -175,7 +175,7 @@ public class PlotLayoutTests
 
 		var document = Render(specification);
 
-		Elements(Defs(document), expectedElement).Should().HaveCount(1, "the marker is defined once and reused");
+		Elements(Defs(document), expectedElement).Where(e => e.Parent?.Name.LocalName != "clipPath").Should().HaveCount(1, "the marker is defined once and reused");
 		Elements(GroupById(document, "series0"), "use").Should().HaveCount(4, "one per point");
 	}
 
@@ -184,7 +184,7 @@ public class PlotLayoutTests
 	{
 		var document = Render(SingleSeries(SeriesChartType.Line, Points(10, 24, 17, 31)));
 
-		Defs(document).Elements().Should().BeEmpty();
+		Defs(document).Elements().Where(e => e.Name.LocalName != "clipPath").Should().BeEmpty("the plot clip is the only definition without a marker");
 		Elements(GroupById(document, "series0"), "use").Should().BeEmpty();
 	}
 }

@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 
 namespace PanoramicData.ChartMagic.Renderers;
 
@@ -59,7 +59,7 @@ internal static class PieSliceBuilder
 	/// Builds the slices for a series, applying the collected-slice threshold and turning values
 	/// into angles.
 	/// </summary>
-	internal static List<PieSlice> Build(Series series)
+	internal static List<PieSlice> Build(Series series, CultureInfo? culture = null)
 	{
 		var values = PositiveValues(series);
 		var total = values.Sum(v => v.Value);
@@ -80,7 +80,7 @@ internal static class PieSliceBuilder
 			var sweep = percentage / 100 * 360;
 
 			slices.Add(new PieSlice(
-				Label: LabelFor(series, entry.Point, entry.Value, percentage, total),
+				Label: LabelFor(series, entry.Point, entry.Value, percentage, total, culture ?? CultureInfo.InvariantCulture),
 				LegendText: LegendTextFor(entry.Point, entry.Value),
 				Value: entry.Value,
 				Percentage: percentage,
@@ -164,15 +164,15 @@ internal static class PieSliceBuilder
 			SweepAngleDegrees: percentage / 100 * 360);
 	}
 
-	private static string LabelFor(Series series, ChartPoint point, double value, double percentage, double total)
+	private static string LabelFor(Series series, ChartPoint point, double value, double percentage, double total, CultureInfo culture)
 		=> series.PieLabelStyle == Models.PieLabelStyle.Disabled
 			? string.Empty
-			: DataLabelText.Substitute(series.LabelText, point, value, series.Name, percentage, total)
+			: DataLabelText.Substitute(series.LabelText, point, value, series.Name, percentage, total, culture)
 				// The category name, not the value. Measured against DocMagic: with no label text
 				// set, the Microsoft chart control labels a pie slice with its X value, so a pie of
 				// cities reads London, Manchester rather than 34, 26.
 				?? point.XValueString
-				?? value.ToString("0.##", CultureInfo.InvariantCulture);
+				?? value.ToString("0.##", culture);
 
 	private static string LegendTextFor(ChartPoint point, double value)
 		=> point.LegendText
