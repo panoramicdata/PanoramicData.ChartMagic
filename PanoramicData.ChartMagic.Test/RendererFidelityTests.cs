@@ -12,6 +12,8 @@ namespace PanoramicData.ChartMagic.Test;
 /// </summary>
 public class RendererFidelityTests
 {
+	private static readonly string[] Cities = ["London", "Manchester", "Leeds"];
+
 	[Fact]
 	public void CurrencyFormat_UsesTheChartCulturesSymbol()
 	{
@@ -190,6 +192,40 @@ public class RendererFidelityTests
 		Elements(labels, "text").Should().HaveCount(4);
 	}
 
+	[Fact]
+	public void ChartBorder_IsDrawnLast_InsideTheImage_WithDashesScaledToItsWidth()
+	{
+		// MS-26605: a 4 pixel dashed border was covered by the legend box, lost half its width off
+		// the image edge, and read as solid because the dashes did not scale with the width.
+		var specification = ColumnChart(SeriesChartType.Column, 2);
+		specification.ChartBorderColor = Color.Red;
+		specification.ChartBorderWidth = 4;
+		specification.ChartBorderLineDashStyle = ChartDashStyle.Dash;
+
+		var document = Render(specification, 720, 400);
+		var svg = document.Root!;
+		var border = svg.Elements().Last();
+
+		border.Attribute("id")!.Value.Should().Be("chartBorder", "it is drawn after everything else");
+		Number(border, "x").Should().Be(2);
+		Number(border, "width").Should().Be(716);
+		var style = border.Attribute("style")!.Value.Split(';');
+		style.Should().Contain("stroke-dasharray:12.00,4.00").And.Contain("stroke-linecap:butt");
+	}
+
+	[Fact]
+	public void LegendLabel_UsesTheInsetBeforeBeingShortened()
+	{
+		// MS-26593: "Manchester" fits a 144 pixel legend on the right of a 720 pixel image once
+		// the inset is given up, so it is not shortened.
+		var specification = SingleSeries(SeriesChartType.Pie, [.. Cities.Select((city, index) => new ChartPoint(city, index, 30 - (index * 5)))]);
+		specification.LegendStyle = LegendStyle.Column;
+		specification.LegendXPositionPercent = 80;
+		specification.LegendWidthPercent = 20;
+		specification.LegendFontSize = 16;
+
+		LabelTexts(Render(specification, 720, 400), "legend").Should().Contain("Manchester");
+	}
 	[Theory]
 	[InlineData(0, 30, 10, new double[] { 0, 10, 20, 30 })]
 	[InlineData(5, 25, 4, new double[] { 5, 9, 13, 17, 21, 25 })]

@@ -225,7 +225,7 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 
 		lineNode.SetAttribute("stroke-width", width.ToString(CultureInfo.InvariantCulture));
 
-		var dashArray = DashArrayFor(dashStyle);
+		var dashArray = DashArrayFor(dashStyle, width);
 		if (dashArray is not null)
 		{
 			lineNode.SetAttribute("stroke-dasharray", dashArray);
@@ -235,20 +235,27 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 	}
 
 	/// <summary>
-	/// The dash pattern for a style, or null for a solid line.
+	/// The dash pattern for a style at a line width, or null for a solid line.
 	/// </summary>
 	/// <remarks>
-	/// The same patterns the series paths use, so an axis line dashed the same way as a series
-	/// looks the same.
+	/// The GDI+ patterns the Microsoft chart control draws with, which are in units of the pen
+	/// width: a 4 pixel dashed border has 12 pixel dashes. Fixed pixel patterns made a thick dashed
+	/// line read as solid.
 	/// </remarks>
-	private static string? DashArrayFor(ChartDashStyle dashStyle) => dashStyle switch
+	internal static string? DashArrayFor(ChartDashStyle dashStyle, double width)
 	{
-		ChartDashStyle.Dash => "5,2",
-		ChartDashStyle.DashDot => "5,2,1,2",
-		ChartDashStyle.DashDotDot => "5,2,1,2,1,2",
-		ChartDashStyle.Dot => "1,2",
-		_ => null
-	};
+		double[]? pattern = dashStyle switch
+		{
+			ChartDashStyle.Dash => [3, 1],
+			ChartDashStyle.DashDot => [3, 1, 1, 1],
+			ChartDashStyle.DashDotDot => [3, 1, 1, 1, 1, 1],
+			ChartDashStyle.Dot => [1, 1],
+			_ => null
+		};
+
+		var unit = Math.Max(width, 1);
+		return pattern is null ? null : string.Join(",", pattern.Select(length => N(length * unit)));
+	}
 
 	/// <summary>
 	/// A coordinate formatted for a path, to two decimal places and culture-independently.
@@ -261,9 +268,33 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 	internal static string N(double value) => value.ToString("F2", CultureInfo.InvariantCulture);
 
 	/// <summary>
-	/// A positioned group for an element, translated into place.
+	/// An element's border alone, inset by half its width so it lies inside the image.
 	/// </summary>
-	/// <param name="element">The element the group represents.</param>
+	/// <remarks>
+	/// For the chart's outer border, which is drawn after everything else, as the Microsoft chart
+	/// control draws its Borderline: drawn with the background, the legend's box covered it.
+	/// </remarks>
+	internal XmlElement? Border(ChartNamedElement element)
+	{
+		if (element.StrokeColor == Colors.Transparent || element.StrokeWidth <= 0)
+		{
+			return null;
+		}
+
+		var inset = element.StrokeWidth / 2;
+		var rect = Element("rect");
+		rect.SetAttribute("id", "chartBorder");
+		rect.SetAttribute("x", N(inset));
+		rect.SetAttribute("y", N(inset));
+		rect.SetAttribute("width", N(Math.Max(0, widthPixels - element.StrokeWidth)));
+		rect.SetAttribute("height", N(Math.Max(0, heightPixels - element.StrokeWidth)));
+		rect.SetStyle(element, applyFill: false);
+		return rect;
+	}
+
+	/// <summary>
+	/// A positioned group for an element, translated into place.
+	/// </summary>	/// <param name="element">The element the group represents.</param>
 	/// <param name="id">The group id.</param>
 	/// <param name="within">
 	/// The group this one is nested inside, when it is nested inside a positioned one.
@@ -276,7 +307,8 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 	/// so the chart area starts 20% in, and the plot and its axes were displaced by a further
 	/// 20% of the width: the last category fell off the canvas.
 	/// </remarks>
-	internal XmlElement PositionedGroup(ChartNamedElement element, string id, ChartElement? within = null)
+	/// <param name="drawStroke">Whether the element's border is drawn on its rectangle.</param>
+	internal XmlElement PositionedGroup(ChartNamedElement element, string id, ChartElement? within = null, bool drawStroke = true)
 	{
 		var groupNode = Group(id);
 
@@ -298,8 +330,23 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 		}
 
 		var rectNode = Element("rect");
-		rectNode.SetAttribute("width", (widthPixels * element.GetCanvasWidthPercent() / 100).ToString(CultureInfo.InvariantCulture));
-		rectNode.SetAttribute("height", (heightPixels * element.GetCanvasHeightPercent() / 100).ToString(CultureInfo.InvariantCulture));
+		var width = widthPixels * element.GetCanvasWidthPercent() / 100;
+		var height = heightPixels * element.GetCanvasHeightPercent() / 100;
+
+		// A stroke is centred on the edge, so a border on an element filling the image lost half
+		// its width off the edge. Inset by half the stroke, the border lies inside the box, as the
+		// Microsoft chart control draws it.
+		if (drawStroke && element.StrokeColor != Colors.Transparent && element.StrokeWidth > 0)
+		{
+			var inset = element.StrokeWidth / 2;
+			rectNode.SetAttribute("x", inset.ToString(CultureInfo.InvariantCulture));
+			rectNode.SetAttribute("y", inset.ToString(CultureInfo.InvariantCulture));
+			width = Math.Max(0, width - element.StrokeWidth);
+			height = Math.Max(0, height - element.StrokeWidth);
+		}
+
+		rectNode.SetAttribute("width", width.ToString(CultureInfo.InvariantCulture));
+		rectNode.SetAttribute("height", height.ToString(CultureInfo.InvariantCulture));
 		if (element.XRadiusPixels != 0)
 		{
 			rectNode.SetAttribute("rx", element.XRadiusPixels.ToString(CultureInfo.InvariantCulture));
@@ -310,7 +357,7 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 			rectNode.SetAttribute("ry", element.YRadiusPixels.ToString(CultureInfo.InvariantCulture));
 		}
 
-		rectNode.SetStyle(element);
+		rectNode.SetStyle(element, applyStroke: drawStroke);
 		groupNode.AppendChild(rectNode);
 
 		if (debug)

@@ -63,6 +63,11 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 
 		PlotAnnotations(chart, chartBackgroundAreaNode);
 
+		if (_canvas.Border(chart.ChartBackgroundArea) is { } border)
+		{
+			_canvas.Document.DocumentElement!.AppendChild(border);
+		}
+
 		// Issue #27: UTF-8, not UTF-16.
 		//
 		// Encoding.Unicode is UTF-16 LE. A UTF-16 SVG is valid and renders fine in a browser,
@@ -124,7 +129,7 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 		svg.AppendChild(defs);
 
 		// Chart background area
-		chartBackgroundAreaNode = _canvas.PositionedGroup(chart.ChartBackgroundArea, "chartBackgroundArea");
+		chartBackgroundAreaNode = _canvas.PositionedGroup(chart.ChartBackgroundArea, "chartBackgroundArea", drawStroke: false);
 		svg.AppendChild(chartBackgroundAreaNode);
 
 		// ChartArea background

@@ -22,7 +22,7 @@ internal sealed class LegendRenderer(SvgCanvas canvas)
 	private const double LegendInsetFraction = 0.12;
 
 	/// <summary>The space kept between legend text and the edge of the image.</summary>
-	private const double ImageEdgeGapPixels = 2;
+	private const double ImageEdgeGapPixels = 1;
 
 	/// <summary>The height of one line of legend text, as a multiple of the font size.</summary>
 	private const double LineHeightFraction = 1.15;
@@ -168,7 +168,7 @@ internal sealed class LegendRenderer(SvgCanvas canvas)
 	{
 		var lines = entries.ConvertAll(entry => TextMeasure.Wrap(entry.Text, legend.TextWrapThreshold));
 		var widestText = lines.SelectMany(l => l).Select(line => TextMeasure.Width(line, metrics.FontSize, legend.FontWeight)).DefaultIfEmpty(0).Max();
-		var inset = InsetFor(metrics, widestText);
+		var inset = InsetFor(metrics, Math.Min(metrics.Width, _canvas.WidthPixels - ImageEdgeGapPixels - bounds.Left), widestText);
 		var maximumTextWidth = MaximumTextWidth(bounds, inset, metrics);
 
 		var centres = SpreadDown(metrics, bounds, lines);
@@ -184,11 +184,15 @@ internal sealed class LegendRenderer(SvgCanvas canvas)
 	/// The inset an entry starts at: the measured fraction of the legend, less whatever a long
 	/// label needs to stay inside it.
 	/// </summary>
-	private static double InsetFor(LegendMetrics metrics, double widestText)
+	/// <param name="metrics">The legend's measurements.</param>
+	/// <param name="usableWidth">How much of the legend's width is on the image.</param>
+	/// <param name="widestText">The widest line of entry text.</param>
+	private static double InsetFor(LegendMetrics metrics, double usableWidth, double widestText)
 	{
 		var standard = Math.Round(metrics.Width * LegendInsetFraction, 2);
-		var room = metrics.Width - metrics.SwatchWidth - (metrics.Padding / 2) - widestText;
-		return Math.Round(Math.Clamp(room, Math.Min(metrics.Padding / 2, standard), standard), 2);
+		var room = usableWidth - metrics.SwatchWidth - (metrics.Padding / 2) - widestText;
+		// Floored, so rounding never takes back the room just measured.
+		return Math.Floor(Math.Clamp(room, Math.Min(metrics.Padding / 2, standard), standard) * 100) / 100;
 	}
 
 	/// <summary>

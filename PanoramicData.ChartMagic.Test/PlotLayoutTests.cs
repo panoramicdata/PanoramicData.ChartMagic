@@ -100,8 +100,13 @@ public class PlotLayoutTests
 		specification.ChartBackgroundColor = Color.FromArgb(0x33, 0x77, 0x77, 0x77);
 		specification.ChartBorderColor = Color.Black;
 
-		var background = GroupById(Render(specification), "chartBackgroundArea");
+		var document = Render(specification);
+		var background = GroupById(document, "chartBackgroundArea");
 		var style = Elements(background, "rect")[0].Attribute("style")!.Value;
+
+		// The border is drawn last, on top of the legend, in an element of its own.
+		var border = document.Descendants().Single(e => e.Attribute("id")?.Value == "chartBorder");
+		var borderStyle = border.Attribute("style")!.Value.Split(';');
 
 		// Split into declarations rather than matching substrings: "fill-opacity" contains
 		// "opacity", so a substring check cannot tell the two apart.
@@ -111,7 +116,8 @@ public class PlotLayoutTests
 		declarations.Should().NotContain(
 			"opacity:0.20",
 			"issue #35: element opacity faded the border along with the fill");
-		declarations.Should().Contain("stroke:#000000");
+		borderStyle.Should().Contain("stroke:#000000");
+		borderStyle.Should().NotContain(declaration => declaration.Contains("opacity", StringComparison.Ordinal));
 	}
 
 	/// <summary>
