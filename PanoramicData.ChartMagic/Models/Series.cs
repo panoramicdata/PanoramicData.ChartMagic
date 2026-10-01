@@ -9,6 +9,9 @@ public class Series(ChartElement parent, string name) : ChartNamedElement(parent
 	public bool IsXValueIndexed { get; set; }
 	public string? LabelText { get; set; }
 	public string? LegendText { get; set; }
+
+	/// <summary>The fill drawn behind each data label, or null for none.</summary>
+	public Color? LabelBackColor { get; set; }
 	public MarkerStyle MarkerStyle { get; set; } = MarkerStyle.None;
 	public Color? MarkerStrokeColor { get; set; }
 	public Color? MarkerFillColor { get; set; }

@@ -1,4 +1,4 @@
-﻿namespace PanoramicData.ChartMagic.Renderers;
+namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
 /// Writes a chart out as SVG.
@@ -37,13 +37,13 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 		if (funnelSeries is not null)
 		{
 			// A funnel has no axes either, and like a pie its legend describes points, not series.
-			var segments = PieSliceBuilder.Build(funnelSeries);
+			var segments = PieSliceBuilder.Build(funnelSeries, chart.Culture);
 			new FunnelRenderer(_canvas).Plot(funnelSeries, segments, innerPlotNode, geometry.Width, geometry.Height);
 			legends.PlotPieLegend(chart, segments, chartBackgroundAreaNode);
 		}
 		else if (pieSeries is not null)
 		{
-			var slices = PieSliceBuilder.Build(pieSeries);
+			var slices = PieSliceBuilder.Build(pieSeries, chart.Culture);
 			new PieRenderer(_canvas).Plot(pieSeries, slices, innerPlotNode, geometry.Width, geometry.Height);
 			legends.PlotPieLegend(chart, slices, chartBackgroundAreaNode);
 		}
@@ -62,6 +62,11 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 		}
 
 		PlotAnnotations(chart, chartBackgroundAreaNode);
+
+		if (_canvas.Border(chart.ChartBackgroundArea) is { } border)
+		{
+			_canvas.Document.DocumentElement!.AppendChild(border);
+		}
 
 		// Issue #27: UTF-8, not UTF-16.
 		//
@@ -124,7 +129,7 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 		svg.AppendChild(defs);
 
 		// Chart background area
-		chartBackgroundAreaNode = _canvas.PositionedGroup(chart.ChartBackgroundArea, "chartBackgroundArea");
+		chartBackgroundAreaNode = _canvas.PositionedGroup(chart.ChartBackgroundArea, "chartBackgroundArea", drawStroke: false);
 		svg.AppendChild(chartBackgroundAreaNode);
 
 		// ChartArea background

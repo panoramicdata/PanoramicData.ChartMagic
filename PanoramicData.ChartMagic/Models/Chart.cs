@@ -28,6 +28,15 @@ public class Chart : RootChartElement
 
 	public AnnotationCollection Annotations { get; }
 
+	/// <summary>
+	/// The culture numbers are formatted in: axis labels and data labels.
+	/// </summary>
+	/// <remarks>
+	/// Invariant by default. A currency format such as C2 shows the culture's own symbol, so with
+	/// the invariant culture it is the generic one.
+	/// </remarks>
+	public CultureInfo Culture { get; set; } = CultureInfo.InvariantCulture;
+
 	// If there is no debug parameter
 	public void SaveImage(Stream stream, ChartImageFormat chartImageFormat, int widthPixels, int heightPixels)
 		=> SaveImage(stream, chartImageFormat, widthPixels, heightPixels, false);

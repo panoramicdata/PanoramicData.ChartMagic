@@ -16,11 +16,14 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 		var stackLines = _canvas.Group("stackLines");
 		var dataLabels = _canvas.Group("dataLabels");
 		var bands = BandLayout.For(chart);
+		var clip = PlotClip(geometry, defs);
+		stackLines.SetAttribute("clip-path", clip);
 
 		var seriesIndex = -1;
 		foreach (var series in chart.Series)
 		{
 			var seriesNode = _canvas.Group($"series{++seriesIndex}");
+			seriesNode.SetAttribute("clip-path", clip);
 			List<DataLabelAnchor> labelAnchors;
 
 			// Add markers to defs if required
@@ -43,7 +46,7 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 			}
 
 			innerPlotNode.AppendChild(seriesNode);
-			AppendDataLabels(series, seriesIndex, labelAnchors, dataLabels);
+			AppendDataLabels(series, seriesIndex, labelAnchors, dataLabels, chart.Culture);
 		}
 
 		if (stackLines.ChildNodes.Count != 0)
@@ -56,6 +59,33 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 		{
 			innerPlotNode.AppendChild(dataLabels);
 		}
+	}
+
+	/// <summary>
+	/// A clip path covering the inner plot, as a clip-path reference.
+	/// </summary>
+	/// <remarks>
+	/// Data beyond an explicit axis minimum or maximum was drawn straight through the axis and
+	/// over the chart around it. The Microsoft chart control clips series to the plot. A pixel of
+	/// slack either side keeps a line lying exactly on the plot edge whole.
+	/// </remarks>
+	private string PlotClip(PlotGeometry geometry, XmlElement defs)
+	{
+		const string id = "innerPlotClip";
+		const double slack = 1;
+
+		var rect = _canvas.Element("rect");
+		rect.SetAttribute("x", SvgCanvas.N(-slack));
+		rect.SetAttribute("y", SvgCanvas.N(-slack));
+		rect.SetAttribute("width", SvgCanvas.N(geometry.Width + (2 * slack)));
+		rect.SetAttribute("height", SvgCanvas.N(geometry.Height + (2 * slack)));
+
+		var clipPath = _canvas.Element("clipPath");
+		clipPath.SetAttribute("id", id);
+		clipPath.AppendChild(rect);
+		defs.AppendChild(clipPath);
+
+		return $"url(#{id})";
 	}
 
 	/// <summary>
@@ -75,7 +105,7 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 	/// column, bar or line chart produced a chart with no labels and no error. A series with no
 	/// label text draws no labels, as in the Microsoft chart control.
 	/// </remarks>
-	private void AppendDataLabels(Series series, int seriesIndex, List<DataLabelAnchor> anchors, XmlElement dataLabels)
+	private void AppendDataLabels(Series series, int seriesIndex, List<DataLabelAnchor> anchors, XmlElement dataLabels, CultureInfo culture)
 	{
 		if (series.LabelText is not { Length: > 0 } || anchors.Count == 0)
 		{
@@ -89,10 +119,16 @@ internal sealed class SeriesRenderer(SvgCanvas canvas)
 		foreach (var anchor in anchors)
 		{
 			var percentage = total == 0 ? 0 : Math.Abs(anchor.Value) / total * 100;
-			var text = DataLabelText.Substitute(series.LabelText, anchor.Point, anchor.Value, series.Name, percentage, total);
+			var text = DataLabelText.Substitute(series.LabelText, anchor.Point, anchor.Value, series.Name, percentage, total, culture);
 			if (text is not { Length: > 0 })
 			{
 				continue;
+			}
+
+			if (series.LabelBackColor is { A: > 0 } background)
+			{
+				dataLabels.AppendChild(
+					_canvas.TextBackground(anchor.X, anchor.Y, text, anchor.HorizontalAlignment, anchor.VerticalAlignment, style, background));
 			}
 
 			dataLabels.AppendChild(

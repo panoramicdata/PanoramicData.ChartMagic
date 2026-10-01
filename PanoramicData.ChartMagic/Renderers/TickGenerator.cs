@@ -17,14 +17,19 @@ internal static class TickGenerator
 	/// <summary>
 	/// Ticks across a linear range, at a caller-supplied interval or a readable one.
 	/// </summary>
-	internal static IReadOnlyList<double> Linear(double min, double max, double? interval, int targetCount)
+	/// <param name="min">The start of the range.</param>
+	/// <param name="max">The end of the range.</param>
+	/// <param name="interval">The step, or null for a readable one.</param>
+	/// <param name="targetCount">Roughly how many ticks to aim for without an interval.</param>
+	/// <param name="anchor">A value the ticks are counted from, or null for multiples of the step.</param>
+	internal static IReadOnlyList<double> Linear(double min, double max, double? interval, int targetCount, double? anchor = null)
 	{
 		if (!IsPlottableRange(min, max))
 		{
 			return [min];
 		}
 
-		var ticks = StepsAcross(min, max, UsableStep(min, max, interval, targetCount));
+		var ticks = StepsAcross(min, max, UsableStep(min, max, interval, targetCount), anchor ?? 0);
 		return ticks.Count == 0 ? [min] : ticks;
 	}
 
@@ -57,17 +62,19 @@ internal static class TickGenerator
 	}
 
 	/// <summary>
-	/// The multiples of the step that fall within the range, aligned to a multiple of it.
+	/// The steps from the anchor that fall within the range.
 	/// </summary>
-	private static List<double> StepsAcross(double min, double max, double step)
+	private static List<double> StepsAcross(double min, double max, double step, double anchor)
 	{
-		var decimals = DecimalsFor(step);
+		// The anchor's own decimals too, so steps of 4 from 5.5 keep their half.
+		var fraction = Math.Abs(anchor % 1);
+		var decimals = Math.Max(DecimalsFor(step), fraction == 0 ? 0 : DecimalsFor(fraction));
 		var ticks = new List<double>();
 
 		// A tolerance of one part in a billion of the step, so a tick that lands exactly on
-		// the maximum is not dropped by floating-point drift.
+		// the minimum or the maximum is not dropped by floating-point drift.
 		var tolerance = step * 1e-9;
-		for (var value = Math.Ceiling(min / step) * step; value <= max + tolerance; value += step)
+		for (var value = anchor + (Math.Ceiling(((min - anchor) / step) - 1e-9) * step); value <= max + tolerance; value += step)
 		{
 			ticks.Add(Math.Round(value, decimals));
 			if (ticks.Count >= MaximumTicks)

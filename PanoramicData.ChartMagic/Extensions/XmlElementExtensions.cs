@@ -1,4 +1,4 @@
-﻿namespace PanoramicData.ChartMagic.Extensions;
+namespace PanoramicData.ChartMagic.Extensions;
 
 internal static class XmlElementExtensions
 {
@@ -39,20 +39,14 @@ internal static class XmlElementExtensions
 				style.Add($"stroke-opacity:{(element.StrokeColor.A / 255f).ToString("F2", CultureInfo.InvariantCulture)}");
 			}
 
-			var dashArray = element.StrokeStyle switch
-			{
-				ChartDashStyle.Dash => "5,2",
-				ChartDashStyle.DashDot => "5,2,1,2",
-				ChartDashStyle.DashDotDot => "5,2,1,2,1,2",
-				ChartDashStyle.Dot => "5,2",
-				_ => null
-			};
+			var dashArray = SvgCanvas.DashArrayFor(element.StrokeStyle, element.StrokeWidth);
 			if (dashArray is not null)
 			{
 				style.Add($"stroke-dasharray:{dashArray}");
 			}
 
-			var lineCap = element.StrokeLineCapStyle switch
+			// Round caps grow every dash by the line width, which closes the gaps.
+			var lineCap = dashArray is not null ? "butt" : element.StrokeLineCapStyle switch
 			{
 				StrokeLineCapStyle.Square => "square",
 				StrokeLineCapStyle.Round => "round",

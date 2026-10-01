@@ -56,6 +56,9 @@ internal sealed class EmbeddedTypefaceProvider : ITypefaceProvider
 	/// </remarks>
 	private static readonly Lazy<SKTypeface?> Typeface = new(Load, LazyThreadSafetyMode.ExecutionAndPublication);
 
+	/// <summary>The embedded typeface, or null if the resource is missing.</summary>
+	internal static SKTypeface? Default => Typeface.Value;
+
 	/// <summary>
 	/// Returns the embedded typeface for every request.
 	/// </summary>

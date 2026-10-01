@@ -84,7 +84,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 			foreach (var value in MinorTicks(yAxis, geometry, isValueAxis: !geometry.IsHorizontalPlot))
 			{
 				var y = geometry.YToPixels(value);
-				gridNode.AppendChild(_canvas.Line(0, y, geometry.Width, y, yAxis.MinorGridColor, yAxis.GridWidth));
+				gridNode.AppendChild(_canvas.Line(0, y, geometry.Width, y, yAxis.MinorGridColor, yAxis.MinorGridWidth ?? yAxis.GridWidth, yAxis.MinorGridDashStyle));
 			}
 		}
 
@@ -93,12 +93,71 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 			return;
 		}
 
-		foreach (var value in YAxisTickValues(chart, geometry))
+		foreach (var value in HorizontalMajorGridValues(chart, geometry))
 		{
 			var y = geometry.IsHorizontalPlot ? geometry.CategoryToPixels(value) : geometry.YToPixels(value);
-			gridNode.AppendChild(_canvas.Line(0, y, geometry.Width, y, yAxis.MajorGridColor, yAxis.GridWidth));
+			gridNode.AppendChild(_canvas.Line(0, y, geometry.Width, y, yAxis.MajorGridColor, yAxis.GridWidth, yAxis.MajorGridDashStyle));
 		}
 	}
+
+	/// <summary>
+	/// Where the horizontal major gridlines go: at the Y axis labels, unless the gridlines have an
+	/// interval of their own.
+	/// </summary>
+	/// <remarks>
+	/// The gridline interval is independent of the label interval in the Microsoft chart control:
+	/// gridlines every 10 over labels every 5 draws four lines on a 0 to 35 axis, not eight.
+	/// </remarks>
+	private static IReadOnlyList<double> HorizontalMajorGridValues(Chart chart, PlotGeometry geometry)
+	{
+		var yAxis = chart.ChartArea.YAxis;
+		if (yAxis.MajorGridInterval is not > 0 || geometry.YIsLogarithmic)
+		{
+			return YAxisTickValues(chart, geometry);
+		}
+
+		return geometry.IsHorizontalPlot
+			? EveryNth(geometry.Categories, yAxis.MajorGridInterval.Value)
+			: TickGenerator.Linear(geometry.YDisplayStart, geometry.YDisplayEnd, yAxis.MajorGridInterval, yAxis.TargetTickCount, ValueAxisAnchor(chart, geometry));
+	}
+
+	/// <summary>
+	/// Where the vertical major gridlines go: at the X axis labels, unless the gridlines have an
+	/// interval of their own.
+	/// </summary>
+	private static IReadOnlyList<double> VerticalMajorGridValues(Chart chart, PlotGeometry geometry)
+	{
+		var xAxis = chart.ChartArea.XAxis;
+		if (xAxis.MajorGridInterval is not > 0)
+		{
+			return XAxisTickValues(chart, geometry);
+		}
+
+		if (geometry.IsHorizontalPlot)
+		{
+			return TickGenerator.Linear(geometry.YDisplayStart, geometry.YDisplayEnd, xAxis.MajorGridInterval, xAxis.TargetTickCount, ValueAxisAnchor(chart, geometry));
+		}
+
+		return geometry.IsCategorical
+			? EveryNth(geometry.Categories, xAxis.MajorGridInterval.Value)
+			: TickGenerator.Linear(geometry.XDisplayStart, geometry.XDisplayEnd, xAxis.MajorGridInterval, xAxis.TargetTickCount);
+	}
+
+	private static IReadOnlyList<double> EveryNth(IReadOnlyList<double> categories, double interval)
+	{
+		var step = Math.Max(1, (int)Math.Round(interval));
+		return [.. categories.Where((_, index) => index % step == 0)];
+	}
+
+	/// <summary>
+	/// The value the value axis counts its ticks from, or null for multiples of the interval.
+	/// </summary>
+	/// <remarks>
+	/// The value axis is the Y axis area's whichever way the plot runs: a bar chart keeps its range
+	/// there too.
+	/// </remarks>
+	private static double? ValueAxisAnchor(Chart chart, PlotGeometry geometry)
+		=> chart.ChartArea.YAxis is { IntervalStartsAtMinimum: true, Min: not null } ? geometry.YDisplayStart : null;
 
 	/// <summary>
 	/// The vertical gridlines, which mark the values on the X axis.
@@ -109,7 +168,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 		{
 			foreach (var x in MinorGridPositions(xAxis, geometry))
 			{
-				gridNode.AppendChild(_canvas.Line(x, 0, x, geometry.Height, xAxis.MinorGridColor, xAxis.GridWidth));
+				gridNode.AppendChild(_canvas.Line(x, 0, x, geometry.Height, xAxis.MinorGridColor, xAxis.MinorGridWidth ?? xAxis.GridWidth, xAxis.MinorGridDashStyle));
 			}
 		}
 
@@ -118,10 +177,10 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 			return;
 		}
 
-		foreach (var value in XAxisTickValues(chart, geometry))
+		foreach (var value in VerticalMajorGridValues(chart, geometry))
 		{
 			var x = XAxisPixels(geometry, value);
-			gridNode.AppendChild(_canvas.Line(x, 0, x, geometry.Height, xAxis.MajorGridColor, xAxis.GridWidth));
+			gridNode.AppendChild(_canvas.Line(x, 0, x, geometry.Height, xAxis.MajorGridColor, xAxis.GridWidth, xAxis.MajorGridDashStyle));
 		}
 	}
 
@@ -171,8 +230,8 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 			xAxisNode.AppendChild(_canvas.Line(x, 0, x, tickLength, xAxis.LineColor, xAxis.LineWidth));
 
 			var label = geometry.IsHorizontalPlot
-				? FormatAxisValue(value, xAxis)
-				: geometry.CategoryLabel(value) ?? FormatAxisValue(value, xAxis);
+				? FormatAxisValue(value, xAxis, chart.Culture)
+				: geometry.CategoryLabel(value) ?? FormatAxisValue(value, xAxis, chart.Culture);
 
 			xAxisNode.AppendChild(
 				_canvas.Text(
@@ -217,6 +276,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 		var tickLength = yAxis.TickLengthPixels;
 		var labelX = axisWidth - tickLength - TickLabelGapPixels;
 		var labelStyle = TextStyle.Unstroked(yAxis.FontWeight, yAxis.FontFamily, yAxis.FontSize, yAxis.FontColor);
+		var widestLabel = 0d;
 
 		foreach (var value in YAxisTickValues(chart, geometry))
 		{
@@ -225,8 +285,9 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 				_canvas.Line(axisWidth - tickLength, y, axisWidth, y, yAxis.LineColor, yAxis.LineWidth));
 
 			var label = geometry.IsHorizontalPlot
-				? geometry.CategoryLabel(value) ?? FormatAxisValue(value, yAxis)
-				: FormatAxisValue(value, yAxis);
+				? geometry.CategoryLabel(value) ?? FormatAxisValue(value, yAxis, chart.Culture)
+				: FormatAxisValue(value, yAxis, chart.Culture);
+			widestLabel = Math.Max(widestLabel, TextMeasure.Width(label, yAxis.FontSize, yAxis.FontWeight));
 
 			yAxisNode.AppendChild(
 				_canvas.Text(
@@ -240,21 +301,44 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 					yAxis.LabelAngle));
 		}
 
-		if (yAxis.Title is { Length: > 0 })
+		if (yAxis.Title is { Length: > 0 }
+			&& YAxisTitleFontSize(labelX - widestLabel, yAxis.FontSize) is { } titleFontSize)
 		{
 			// Rotated a quarter turn anticlockwise and centred on the axis, as a Y axis title
-			// conventionally reads.
+			// conventionally reads. Rotated about its baseline, so the glyphs lie to its left.
 			yAxisNode.AppendChild(
 				_canvas.Text(
 					"yAxisTitle",
-					yAxis.FontSize * 0.9,
+					TitleEdgeGapPixels + (titleFontSize * TitleAscentFraction),
 					geometry.Height / 2,
 					yAxis.Title,
 					HorizontalAlignment.Center,
-					VerticalAlignment.Top,
-					labelStyle with { FontWeight = FontWeight.Bold },
+					VerticalAlignment.Bottom,
+					labelStyle with { FontWeight = FontWeight.Bold, FontSize = titleFontSize },
 					-90));
 		}
+	}
+
+	private const double TitleEdgeGapPixels = 1;
+
+	private const double TitleAscentFraction = 0.8;
+
+	/// <summary>The smallest a Y axis title is shrunk to before it is left out.</summary>
+	private const double MinimumTitleFontSize = 8;
+
+	/// <summary>
+	/// The size the Y axis title can be drawn at in the space left of the labels, or null if none.
+	/// </summary>
+	/// <remarks>
+	/// Drawn at full size, a title in a narrow strip lay over the tick labels. The Microsoft chart
+	/// control leaves it out; a smaller title still says what the axis measures, so it is shrunk to
+	/// fit first and only left out when it would be too small to read.
+	/// </remarks>
+	private static double? YAxisTitleFontSize(double labelsLeftEdge, double fontSize)
+	{
+		var available = labelsLeftEdge - (2 * TitleEdgeGapPixels) - TickLabelGapPixels;
+		var fitted = Math.Min(fontSize, available);
+		return fitted >= MinimumTitleFontSize ? fitted : null;
 	}
 
 	private static double XAxisPixels(PlotGeometry geometry, double value)
@@ -274,7 +358,8 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 				geometry.YDisplayStart,
 				geometry.YDisplayEnd,
 				chart.ChartArea.XAxis.Interval,
-				chart.ChartArea.XAxis.TargetTickCount);
+				chart.ChartArea.XAxis.TargetTickCount,
+				ValueAxisAnchor(chart, geometry));
 		}
 
 		if (geometry.IsCategorical)
@@ -312,7 +397,8 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 				// The interval the bounds were derived from, so the labels land on the bounds
 				// rather than being chosen again from the adjusted range.
 				chart.ChartArea.YAxis.Interval ?? geometry.ValueAxisInterval,
-				chart.ChartArea.YAxis.TargetTickCount);
+				chart.ChartArea.YAxis.TargetTickCount,
+				ValueAxisAnchor(chart, geometry));
 	}
 
 	/// <summary>
@@ -413,20 +499,20 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 	/// <summary>
 	/// Formats an axis value, honouring an explicit format string and the short-label option.
 	/// </summary>
-	private static string FormatAxisValue(double value, AxisArea axis)
+	private static string FormatAxisValue(double value, AxisArea axis, CultureInfo culture)
 	{
 		if (axis.LabelFormat is { Length: > 0 })
 		{
-			return value.ToString(axis.LabelFormat, CultureInfo.InvariantCulture);
+			return value.ToString(axis.LabelFormat, culture);
 		}
 
 		if (axis.UseShortLabels)
 		{
-			return ShortAxisLabel(value);
+			return ShortAxisLabel(value, culture);
 		}
 
 		// Two decimal places at most, and none where the value does not need them.
-		return value.ToString("0.##", CultureInfo.InvariantCulture);
+		return value.ToString("0.##", culture);
 	}
 
 	/// <summary>
@@ -439,24 +525,24 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 	/// anything under a thousand alone, which is why the setting had no effect on a percentage
 	/// axis.
 	/// </remarks>
-	private static string ShortAxisLabel(double value)
+	private static string ShortAxisLabel(double value, CultureInfo culture)
 	{
 		var absolute = Math.Abs(value);
 		if (absolute >= 1_000_000_000)
 		{
-			return FormattableString.Invariant($"{value / 1_000_000_000:0.0}G");
+			return (value / 1_000_000_000).ToString("0.0", culture) + "G";
 		}
 
 		if (absolute >= 1_000_000)
 		{
-			return FormattableString.Invariant($"{value / 1_000_000:0.0}M");
+			return (value / 1_000_000).ToString("0.0", culture) + "M";
 		}
 
 		if (absolute >= 1_000)
 		{
-			return FormattableString.Invariant($"{value / 1_000:0.0}K");
+			return (value / 1_000).ToString("0.0", culture) + "K";
 		}
 
-		return value.ToString("0.0", CultureInfo.InvariantCulture);
+		return value.ToString("0.0", culture);
 	}
 }

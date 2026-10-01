@@ -81,6 +81,33 @@ public class AxisArea(IChartElement parent, string name) : ChartNamedElement(par
 	public double GridWidth { get; set; } = 1;
 
 	/// <summary>
+	/// The width of minor gridlines, in pixels, where it differs from <see cref="GridWidth"/>.
+	/// </summary>
+	public double? MinorGridWidth { get; set; }
+
+	/// <summary>The dash pattern of major gridlines.</summary>
+	public ChartDashStyle MajorGridDashStyle { get; set; }
+
+	/// <summary>The dash pattern of minor gridlines.</summary>
+	public ChartDashStyle MinorGridDashStyle { get; set; }
+
+	/// <summary>
+	/// Whether a category axis leaves an interval of space before the first category and after the
+	/// last. Off, the first and last categories sit on the ends of the axis.
+	/// </summary>
+	public bool IsMarginVisible { get; set; } = true;
+
+	/// <summary>
+	/// Whether ticks and gridlines are counted from <see cref="Min"/> rather than placed on
+	/// multiples of the interval.
+	/// </summary>
+	/// <remarks>
+	/// The Microsoft chart control labels an axis with an explicit minimum from that minimum: 5, 9,
+	/// 13 for a minimum of 5 and an interval of 4, where multiples of 4 would give 8, 12, 16.
+	/// </remarks>
+	public bool IntervalStartsAtMinimum { get; set; }
+
+	/// <summary>
 	/// Whether the axis line, ticks and tick labels are drawn. The axis strip's background is
 	/// drawn regardless.
 	/// </summary>
