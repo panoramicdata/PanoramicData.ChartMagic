@@ -24,6 +24,7 @@ by that tool.
 - Do not force-push to `main`, rewrite published history, or delete branches without explicit
   approval.
 - Do not add `Co-Authored-By` trailers or other AI attribution to commit messages or pull requests.
+- Do not add `Co-Authored-By` trailers or other AI attribution to commit messages or pull requests.
 
 ## Tools
 

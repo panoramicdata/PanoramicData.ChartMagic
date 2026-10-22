@@ -31,3 +31,7 @@ the repository to be cloned.
 ## Commits
 
 Do not add `Co-Authored-By` trailers or other AI attribution to commit messages or pull requests.
+
+## Commits
+
+Do not add `Co-Authored-By` trailers or other AI attribution to commit messages or pull requests.
