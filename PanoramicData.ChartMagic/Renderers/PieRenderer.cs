@@ -1,4 +1,6 @@
-﻿namespace PanoramicData.ChartMagic.Renderers;
+﻿using System.Drawing;
+
+namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
 /// Pies and doughnuts, which are drawn as a ring of wedges rather than against axes.
@@ -119,17 +121,15 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 		double radius,
 		double innerRadius)
 	{
-		// Labels drawn outside sit just clear of the edge; inside ones sit where the wedge is
-		// widest.
-		var labelsOutside = series.PieLabelStyle == PieLabelStyle.Outside;
 		var labelStyle = TextStyle.Unstroked(series.FontWeight, series.FontFamily, series.FontSize, series.FontColor);
+		var labelled = slices.Where(s => s.Label.Length > 0).ToList();
 
-		foreach (var slice in slices.Where(s => s.Label.Length > 0))
+		var placements = series.PieLabelStyle == PieLabelStyle.Outside
+			? OutsidePieLabels(series, labelled, pieNode, centreX, centreY, radius)
+			: [.. labelled.Select(slice => InsidePieLabelPosition(centreX, centreY, radius, innerRadius, slice))];
+
+		foreach (var (slice, (at, alignment)) in labelled.Zip(placements))
 		{
-			var (at, alignment) = labelsOutside
-				? OutsidePieLabelPosition(centreX, centreY, radius, slice)
-				: InsidePieLabelPosition(centreX, centreY, radius, innerRadius, slice);
-
 			if (series.LabelBackColor is { A: > 0 } background)
 			{
 				pieNode.AppendChild(
@@ -148,25 +148,101 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 		}
 	}
 
+	/// <summary>How far a leader line runs out from the rim before it turns towards its label.</summary>
+	private const double LeaderElbowPixels = 12;
+
+	/// <summary>The length of a leader line's level run to its label, at least.</summary>
+	private const double LeaderRunPixels = 10;
+
+	/// <summary>The space between the end of a leader line and its label.</summary>
+	private const double LeaderLabelGapPixels = 3;
+
+	/// <summary>The space kept between a label and the rim, at the closest.</summary>
+	private const double LabelRimClearancePixels = 2;
+
 	/// <summary>
-	/// Where a label drawn outside the pie goes.
+	/// The positions of labels drawn outside the pie, after drawing the leader lines that join
+	/// each to its slice.
 	/// </summary>
 	/// <remarks>
-	/// No leader line: the reference render draws none, and with the label sitting just clear of
-	/// the edge there is nothing for one to bridge. The label is anchored away from the pie, so
-	/// that the text runs outwards on both sides.
+	/// MS-26610: as the Windows renderer draws them. Each line runs out from the middle of the
+	/// slice's arc, then level to its label, which reads away from the pie on its own side. Labels
+	/// on one side are kept a line apart, and each is held far enough out that no part of it lies
+	/// over the pie. A transparent line colour draws no lines.
 	/// </remarks>
-	private static ((double X, double Y) At, HorizontalAlignment Alignment) OutsidePieLabelPosition(
+	private List<((double X, double Y) At, HorizontalAlignment Alignment)> OutsidePieLabels(
+		Series series,
+		List<PieSlice> slices,
+		XmlElement pieNode,
 		double centreX,
 		double centreY,
-		double radius,
-		PieSlice slice)
+		double radius)
 	{
-		var to = PointOnCircle(centreX, centreY, radius * 1.05, slice.MidAngleDegrees);
-		var onTheRight = Math.Sin(ToRadians(slice.MidAngleDegrees)) >= 0;
-		return (
-			(to.X + (onTheRight ? 3 : -3), to.Y),
-			onTheRight ? HorizontalAlignment.Left : HorizontalAlignment.Right);
+		var labels = slices
+			.Select(slice => new OutsideLabel(
+				PointOnCircle(centreX, centreY, radius, slice.MidAngleDegrees),
+				PointOnCircle(centreX, centreY, radius + LeaderElbowPixels, slice.MidAngleDegrees),
+				centreX))
+			.ToList();
+
+		var lineHeight = series.FontSize * 1.2;
+		foreach (var side in labels.GroupBy(label => label.OnTheRight))
+		{
+			var previous = double.NegativeInfinity;
+			foreach (var label in side.OrderBy(label => label.Elbow.Y))
+			{
+				label.Y = Math.Max(label.Elbow.Y, previous + lineHeight);
+				previous = label.Y;
+			}
+		}
+
+		var placements = new List<((double X, double Y) At, HorizontalAlignment Alignment)>();
+		foreach (var label in labels)
+		{
+			// The closest any part of the label comes to the centre, vertically.
+			var nearestDy = Math.Max(0, Math.Abs(label.Y - centreY) - (series.FontSize / 2));
+			var clearance = radius + LabelRimClearancePixels;
+			var rimHalfWidth = nearestDy >= clearance ? 0 : Math.Sqrt((clearance * clearance) - (nearestDy * nearestDy));
+
+			var sign = label.OnTheRight ? 1 : -1;
+			var lineEndX = label.OnTheRight
+				? Math.Max(label.Elbow.X + LeaderRunPixels, centreX + rimHalfWidth)
+				: Math.Min(label.Elbow.X - LeaderRunPixels, centreX - rimHalfWidth);
+
+			if (series.PieLineColor.A > 0)
+			{
+				pieNode.AppendChild(LeaderLine(series.PieLineColor, label.Rim, label.Elbow, (lineEndX, label.Y)));
+			}
+
+			placements.Add((
+				(lineEndX + (sign * LeaderLabelGapPixels), label.Y),
+				label.OnTheRight ? HorizontalAlignment.Left : HorizontalAlignment.Right));
+		}
+
+		return placements;
+	}
+
+	private XmlElement LeaderLine(Color color, params (double X, double Y)[] points)
+	{
+		var line = _canvas.Element("polyline");
+		line.SetAttribute("class", "pieLeader");
+		line.SetAttribute("points", string.Join(" ", points.Select(point => $"{SvgCanvas.N(point.X)},{SvgCanvas.N(point.Y)}")));
+		line.SetAttribute("fill", "none");
+		line.SetAttribute("stroke", color.ToHex());
+		line.SetAttribute("stroke-width", "1");
+		return line;
+	}
+
+	/// <summary>A label drawn outside the pie, while its height is being settled.</summary>
+	private sealed class OutsideLabel((double X, double Y) rim, (double X, double Y) elbow, double centreX)
+	{
+		internal (double X, double Y) Rim { get; } = rim;
+
+		internal (double X, double Y) Elbow { get; } = elbow;
+
+		internal bool OnTheRight { get; } = rim.X >= centreX;
+
+		internal double Y { get; set; } = elbow.Y;
 	}
 
 	/// <summary>
