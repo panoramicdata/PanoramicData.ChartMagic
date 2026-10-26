@@ -151,22 +151,24 @@ internal sealed class AxisLayout
 			? labels.Select((label, i) => label is null ? 0 : RotatedDepth(widths[i], fontSize)).Max()
 			: fontSize;
 		var needed = labelTop + labelsDepth + titleRoom;
-		if (needed <= stripHeight)
+		var target = stripHeight;
+		if (needed > stripHeight)
 		{
-			return (angle, labels);
+			var chartAreaHeight = canvas.Height * chart.ChartArea.GetCanvasHeightPercent() / 100;
+			var plotHeight = canvas.Height * innerPlot.GetCanvasHeightPercent() / 100;
+			var limit = Math.Min(chartAreaHeight * MaximumStripFraction, stripHeight + (plotHeight * MaximumPlotShare));
+			target = Math.Min(needed, Math.Max(stripHeight, limit));
+			var growth = (target - stripHeight) / chartAreaHeight * 100;
+			if (growth > 0)
+			{
+				innerPlot.YPositionPercent += growth;
+				innerPlot.HeightPercent -= growth;
+				xAxis.HeightPercent += growth;
+			}
 		}
 
-		var chartAreaHeight = canvas.Height * chart.ChartArea.GetCanvasHeightPercent() / 100;
-		var target = Math.Min(needed, Math.Max(stripHeight, chartAreaHeight * MaximumStripFraction));
-		var growth = (target - stripHeight) / chartAreaHeight * 100;
-		if (growth > 0)
-		{
-			innerPlot.YPositionPercent += growth;
-			innerPlot.HeightPercent -= growth;
-			xAxis.HeightPercent += growth;
-		}
-
-		if (!overlaps)
+		// Numbers are never shortened: "2000000..." reads as another number.
+		if (!overlaps || geometry.IsHorizontalPlot || !geometry.IsCategorical)
 		{
 			return (angle, labels);
 		}
