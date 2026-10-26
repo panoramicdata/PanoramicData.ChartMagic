@@ -50,7 +50,8 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 		else if (pieSeries is not null)
 		{
 			var slices = PieSliceBuilder.Build(pieSeries, chart.Culture);
-			new PieRenderer(_canvas).Plot(pieSeries, slices, innerPlotNode, geometry.Width, geometry.Height);
+			var plotTop = heightPixels * (100 - chart.ChartArea.InnerPlot.GetCanvasYLocationPercent() - chart.ChartArea.InnerPlot.GetCanvasHeightPercent()) / 100;
+			new PieRenderer(_canvas).Plot(pieSeries, slices, innerPlotNode, geometry.Width, geometry.Height, -plotTop, heightPixels - plotTop);
 			legends.PlotPieLegend(chart, slices, chartBackgroundAreaNode);
 		}
 		else
