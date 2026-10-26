@@ -56,7 +56,7 @@ internal static partial class DataLabelText
 
 		return KeywordPattern().Replace(text, match =>
 		{
-			var format = match.Groups["format"] is { Success: true } group ? group.Value : null;
+			var format = match.Groups["format"] is { Success: true, Length: > 0 } group ? group.Value : null;
 			return match.Groups["keyword"].Value.ToUpperInvariant() switch
 			{
 				"VALX" => point.XValueString ?? FormatNumber(point.XValue, format, culture),
