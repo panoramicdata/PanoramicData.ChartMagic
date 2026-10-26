@@ -47,6 +47,12 @@ public class DataLabelFormatTests
 	public void AnUnknownFormat_FallsBackToTheUnformattedValue(string text, string expected)
 		=> Substitute(text).Should().Be(expected);
 
+	[Theory]
+	[InlineData("#VAL{}", "1234.5")]
+	[InlineData("#PERCENT{}", "43.59%")]
+	public void EmptyBraces_AreNoFormat(string text, string expected)
+		=> Substitute(text).Should().Be(expected);
+
 	[Fact]
 	public void CombinedText_FormatsEachKeyword()
 		=> Substitute("#VALX\n(#PERCENT{P1})").Should().Be("Mon\n(43.6%)");
