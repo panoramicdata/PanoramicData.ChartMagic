@@ -90,6 +90,39 @@ public class AxisTests
 		yTitle!.Attribute("transform")!.Value.Should().Contain("rotate(-90", "a Y axis title reads bottom-to-top");
 	}
 
+	private static string? TitleWeight(XDocument document, string axisId, string titleId)
+		=> Elements(GroupById(document, axisId), "text").Single(t => t.Attribute("id")?.Value == titleId).Attribute("font-weight")?.Value;
+
+	[Fact]
+	public void AxisTitles_WithNoStyleGiven_AreRegularWeight()
+	{
+		// MS-27539: both were hardcoded bold, where the Windows renderer draws them regular.
+		var specification = ColumnChart(SeriesChartType.Column, 1);
+		specification.XAxisTitle = "Month";
+		specification.YAxisTitle = "Widgets";
+
+		var document = Render(specification, 720, 400);
+
+		TitleWeight(document, "xAxis", "xAxisTitle").Should().NotBe("bold");
+		TitleWeight(document, "yAxis", "yAxisTitle").Should().NotBe("bold");
+	}
+
+	[Fact]
+	public void AxisTitles_TakeTheAxisWeight()
+	{
+		var specification = ColumnChart(SeriesChartType.Column, 1);
+		specification.XAxisTitle = "Month";
+		specification.YAxisTitle = "Widgets";
+		var chart = specification.ToChart();
+		chart.ChartArea.XAxis.FontWeight = FontWeight.Bold;
+		chart.ChartArea.YAxis.FontWeight = FontWeight.Bold;
+
+		var document = Render(chart, 720, 400);
+
+		TitleWeight(document, "xAxis", "xAxisTitle").Should().Be("bold");
+		TitleWeight(document, "yAxis", "yAxisTitle").Should().Be("bold");
+	}
+
 	[Fact]
 	public void LabelAngle_RotatesTheTickLabels()
 	{

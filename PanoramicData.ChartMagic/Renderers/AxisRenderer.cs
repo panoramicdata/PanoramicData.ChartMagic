@@ -259,7 +259,8 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 					xAxis.Title,
 					HorizontalAlignment.Center,
 					VerticalAlignment.Bottom,
-					labelStyle with { FontWeight = FontWeight.Bold }));
+					// MS-27539 The axis weight, as the Windows renderer draws it: regular unless asked for.
+					labelStyle));
 		}
 	}
 
@@ -314,7 +315,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 					yAxis.Title,
 					HorizontalAlignment.Center,
 					VerticalAlignment.Bottom,
-					labelStyle with { FontWeight = FontWeight.Bold, FontSize = titleFontSize },
+					labelStyle with { FontSize = titleFontSize },
 					-90));
 		}
 	}
