@@ -191,24 +191,9 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 				centreX))
 			.ToList();
 
-		var lineHeight = series.FontSize * 1.2;
 		foreach (var side in labels.GroupBy(label => label.OnTheRight))
 		{
-			// Pushed apart downwards, then back up from the bottom of the image where that ran off it.
-			var ordered = side.OrderBy(label => label.Elbow.Y).ToList();
-			var previous = image.Top + (lineHeight / 2) - lineHeight;
-			foreach (var label in ordered)
-			{
-				label.Y = Math.Max(label.Elbow.Y, previous + lineHeight);
-				previous = label.Y;
-			}
-
-			var next = image.Bottom - (lineHeight / 2) + lineHeight;
-			for (var i = ordered.Count - 1; i >= 0; i--)
-			{
-				ordered[i].Y = Math.Min(ordered[i].Y, next - lineHeight);
-				next = ordered[i].Y;
-			}
+			SpaceApart([.. side.OrderBy(label => label.Elbow.Y)], series.FontSize * 1.2, image);
 		}
 
 		var placements = new List<((double X, double Y) At, HorizontalAlignment Alignment)>();
@@ -235,6 +220,27 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 		}
 
 		return placements;
+	}
+
+	/// <summary>
+	/// Labels on one side, top to bottom, pushed a line apart downwards, then back up from the bottom
+	/// of the image where that ran off it.
+	/// </summary>
+	private static void SpaceApart(List<OutsideLabel> ordered, double lineHeight, (double Top, double Bottom) image)
+	{
+		var previous = image.Top + (lineHeight / 2) - lineHeight;
+		foreach (var label in ordered)
+		{
+			label.Y = Math.Max(label.Elbow.Y, previous + lineHeight);
+			previous = label.Y;
+		}
+
+		var next = image.Bottom - (lineHeight / 2) + lineHeight;
+		for (var i = ordered.Count - 1; i >= 0; i--)
+		{
+			ordered[i].Y = Math.Min(ordered[i].Y, next - lineHeight);
+			next = ordered[i].Y;
+		}
 	}
 
 	private XmlElement LeaderLine(Color color, params (double X, double Y)[] points)
