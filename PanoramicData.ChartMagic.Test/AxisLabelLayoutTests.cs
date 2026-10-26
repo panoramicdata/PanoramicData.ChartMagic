@@ -98,7 +98,7 @@ public class AxisLabelLayoutTests
 	/// </summary>
 	private static bool Overlap(Box a, Box b)
 	{
-		if (a.Angle == 0 && b.Angle == 0)
+		if (Math.Abs(a.Angle) < 0.01 && Math.Abs(b.Angle) < 0.01)
 		{
 			return a.Left < b.Right && b.Left < a.Right && a.Top < b.Bottom && b.Top < a.Bottom;
 		}

@@ -164,67 +164,75 @@ internal sealed class AxisLayout
 		var values = AxisRenderer.XAxisTickValues(chart, geometry);
 		var labels = values.Select(value => (string?)AxisRenderer.XAxisLabel(chart, geometry, value)).ToList();
 
-		var aligned = Math.Abs(xAxis.YPositionPercent + xAxis.HeightPercent - innerPlot.YPositionPercent) < 0.01;
-		if (!xAxis.IsEnabled || !xAxis.LabelsEnabled || xAxis.LabelAngle != 0 || labels.Count == 0 || !aligned)
+		if (!IsFittable(xAxis, labels.Count, xAxis.YPositionPercent + xAxis.HeightPercent, innerPlot.YPositionPercent))
 		{
 			return (xAxis.LabelAngle, labels);
 		}
 
-		var fontSize = xAxis.FontSize;
 		var positions = values.Select(value => AxisRenderer.XAxisPixels(geometry, value)).ToList();
-		var widths = labels.Select(label => TextMeasure.Width(label!, fontSize, xAxis.FontWeight)).ToList();
-		var overlaps = Enumerable.Range(1, labels.Count - 1)
-			.Any(i => Math.Abs(positions[i] - positions[i - 1]) < ((widths[i] + widths[i - 1]) / 2) + LabelSpacingPixels);
-		var angle = overlaps ? RotatedLabelAngle : 0;
-
-		if (overlaps)
+		var widths = labels.Select(label => TextMeasure.Width(label!, xAxis.FontSize, xAxis.FontWeight)).ToList();
+		var turned = Overlaps(positions, widths);
+		if (turned)
 		{
-			Thin(labels, positions, fontSize + 1, Diagonal);
+			Thin(labels, positions, xAxis.FontSize + 1, Diagonal);
 		}
 
-		var stripHeight = canvas.Height * xAxis.GetCanvasHeightPercent() / 100;
 		var labelTop = xAxis.TickLengthPixels + AxisRenderer.TickLabelGapPixels;
-		var titleRoom = xAxis.Title is { Length: > 0 } ? fontSize + LabelSpacingPixels : EdgePaddingPixels;
-		var labelsDepth = overlaps
-			? labels.Select((label, i) => label is null ? 0 : RotatedDepth(widths[i], fontSize)).Max()
-			: fontSize;
-		var needed = labelTop + labelsDepth + titleRoom;
-		var target = stripHeight;
-		if (needed > stripHeight)
-		{
-			var chartAreaHeight = canvas.Height * chart.ChartArea.GetCanvasHeightPercent() / 100;
-			var plotHeight = canvas.Height * innerPlot.GetCanvasHeightPercent() / 100;
-			var limit = Math.Min(chartAreaHeight * MaximumStripFraction, stripHeight + (plotHeight * MaximumPlotShare));
-			target = Math.Min(needed, Math.Max(stripHeight, limit));
-			var growth = (target - stripHeight) / chartAreaHeight * 100;
-			if (growth > 0)
-			{
-				innerPlot.YPositionPercent += growth;
-				innerPlot.HeightPercent -= growth;
-				xAxis.HeightPercent += growth;
-			}
-		}
+		var titleRoom = TitleRoom(xAxis, xAxis.FontSize + LabelSpacingPixels);
+		var needed = labelTop + LabelsDepth(labels, widths, xAxis.FontSize, turned) + titleRoom;
+		var stripHeight = canvas.Height * xAxis.GetCanvasHeightPercent() / 100;
+		var chartAreaHeight = canvas.Height * chart.ChartArea.GetCanvasHeightPercent() / 100;
+		var target = Target(stripHeight, needed, chartAreaHeight, canvas.Height * innerPlot.GetCanvasHeightPercent() / 100);
+		GrowBottomMargin(chart, (target - stripHeight) / chartAreaHeight * 100);
 
 		// Numbers are never shortened: "2000000..." reads as another number.
-		if (!overlaps || geometry.IsHorizontalPlot || !geometry.IsCategorical)
+		if (turned && IsCategoryAxis(geometry))
 		{
-			return (angle, labels);
+			ShortenTurnedLabels(xAxis, labels, positions, canvas.Width * innerPlot.GetCanvasXLocationPercent() / 100, target - labelTop - titleRoom);
 		}
 
-		// A rotated label hangs down and to the left of its tick, so it is limited by the depth of
-		// the strip and by the space left of its tick.
-		var plotLeft = canvas.Width * innerPlot.GetCanvasXLocationPercent() / 100;
-		var deepest = (target - labelTop - titleRoom - (fontSize * (0.8 + (0.2 * Diagonal)))) / Diagonal;
+		return (turned ? RotatedLabelAngle : 0, labels);
+	}
+
+	/// <summary>Whether the X axis shows categories, which may be shortened, rather than numbers.</summary>
+	private static bool IsCategoryAxis(PlotGeometry geometry) => !geometry.IsHorizontalPlot && geometry.IsCategorical;
+
+	/// <summary>Whether any two neighbouring labels, drawn level, would overlap.</summary>
+	private static bool Overlaps(List<double> positions, List<double> widths)
+		=> Enumerable.Range(1, positions.Count - 1)
+			.Any(i => Math.Abs(positions[i] - positions[i - 1]) < ((widths[i] + widths[i - 1]) / 2) + LabelSpacingPixels);
+
+	/// <summary>How far below the top of the labels the deepest one reaches.</summary>
+	private static double LabelsDepth(List<string?> labels, List<double> widths, double fontSize, bool turned)
+		=> turned
+			? labels.Select((label, i) => label is null ? 0 : RotatedDepth(widths[i], fontSize)).Max()
+			: fontSize;
+
+	private static void GrowBottomMargin(Chart chart, double growthPercent)
+	{
+		if (growthPercent <= 0)
+		{
+			return;
+		}
+
+		chart.ChartArea.InnerPlot.YPositionPercent += growthPercent;
+		chart.ChartArea.InnerPlot.HeightPercent -= growthPercent;
+		chart.ChartArea.XAxis.HeightPercent += growthPercent;
+	}
+
+	/// <summary>
+	/// Turned labels shortened to the room they have: a turned label hangs down and to the left of
+	/// its tick, so it is limited by the depth of the strip and by the space left of its tick.
+	/// </summary>
+	private static void ShortenTurnedLabels(AxisArea xAxis, List<string?> labels, List<double> positions, double plotLeft, double depth)
+	{
+		var fontSize = xAxis.FontSize;
+		var deepest = (depth - (fontSize * (0.8 + (0.2 * Diagonal)))) / Diagonal;
 		for (var i = 0; i < labels.Count; i++)
 		{
-			if (labels[i] is { } label)
-			{
-				var widest = Math.Min(deepest, ((plotLeft + positions[i] - EdgePaddingPixels) / Diagonal) - (0.8 * fontSize));
-				labels[i] = TextMeasure.Fit(label, widest + FitTolerancePixels, fontSize, xAxis.FontWeight);
-			}
+			var widest = Math.Min(deepest, ((plotLeft + positions[i] - EdgePaddingPixels) / Diagonal) - (0.8 * fontSize));
+			labels[i] = Fit(labels[i], widest, xAxis);
 		}
-
-		return (angle, labels);
 	}
 
 	/// <summary>
