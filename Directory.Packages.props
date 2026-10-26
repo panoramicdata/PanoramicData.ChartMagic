@@ -11,7 +11,7 @@
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.94" />
     <!-- Demo site (Blazor WebAssembly, published to GitHub Pages) -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.14" />
     <PackageVersion Include="SkiaSharp" Version="4.153.1" />
     <!-- Issue #27: SkiaSharp needs its native library at runtime. Without this the Linux
          CI runner cannot load libSkiaSharp.so, so every raster test fails there. -->
