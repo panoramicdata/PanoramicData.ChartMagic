@@ -268,12 +268,42 @@ public class AxisLabelLayoutTests
 	}
 
 	[Fact]
-	public void TheLayout_DoesNotDriftWhenTheSameChartIsRenderedAgain()
+	public void Rendering_LeavesTheChartAsItWas_SoASecondRenderIsTheSame()
 	{
-		var chart = Chart(SeriesChartType.Column, ["Device 1", "Device 2", "Device 3", "Device 4"]).ToChart();
+		// A margin grown by the first render must not be the starting point of the next.
+		var specification = Chart(SeriesChartType.Bar, ["A very long device name for the first server", "Another quite long device name here", "Short"]);
+		specification.YAxisTitle = "Device";
+		var chart = specification.ToChart();
+		var plot = chart.ChartArea.InnerPlot;
+		var before = (plot.XPositionPercent, plot.YPositionPercent, plot.WidthPercent, plot.HeightPercent, chart.ChartArea.YAxis.WidthPercent, chart.ChartArea.XAxis.HeightPercent);
 
 		var first = RenderedChart.Render(chart, Width, Height).ToString();
 
+		(plot.XPositionPercent, plot.YPositionPercent, plot.WidthPercent, plot.HeightPercent, chart.ChartArea.YAxis.WidthPercent, chart.ChartArea.XAxis.HeightPercent)
+			.Should().Be(before);
 		RenderedChart.Render(chart, Width, Height).ToString().Should().Be(first);
+	}
+
+	[Fact]
+	public void ANarrowPlot_GivesAtMostHalfItsWidthToTheLabels_AndStillRenders()
+	{
+		var specification = Chart(SeriesChartType.Bar, ["A very long device name for the first server", "Another quite long device name here", "Short"]);
+		specification.InnerPlotWidthPercent = 20;
+		var document = Render(specification);
+
+		var plotWidth = Number(Elements(GroupById(document, "innerPlot"), "rect")[0], "width");
+		plotWidth.Should().BeApproximately(Width * 0.8 * 0.2 / 2, 0.5, "the plot gives up at most half of itself");
+		Labels(document, "yAxis").Should().AllSatisfy(label => label.Left.Should().BeGreaterThanOrEqualTo(0, $"'{label.Text}' must not be cut off"));
+	}
+
+	[Fact]
+	public void ValueAxisNumbers_AreNeverShortened()
+	{
+		var specification = Chart(SeriesChartType.Column, ["Mon", "Tue"]);
+		specification.SeriesList[0].Points = [new("Mon", 0, 123_456_789_012), new("Tue", 1, 223_456_789_012)];
+		specification.YAxisTitle = "Bytes";
+		specification.InnerPlotWidthPercent = 20;
+
+		Labels(Render(specification), "yAxis").Should().AllSatisfy(label => label.Text.Should().NotContain("..."));
 	}
 }

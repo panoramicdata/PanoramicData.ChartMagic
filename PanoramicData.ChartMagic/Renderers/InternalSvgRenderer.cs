@@ -23,6 +23,35 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 			? AxisLayout.Apply(chart, axisHandlerResult, widthPixels, heightPixels)
 			: null;
 
+		try
+		{
+			Draw(chart, axisHandlerResult, pieSeries, funnelSeries, axisLayout);
+		}
+		finally
+		{
+			axisLayout?.Restore(chart);
+		}
+
+		// Issue #27: UTF-8, not UTF-16.
+		//
+		// Encoding.Unicode is UTF-16 LE. A UTF-16 SVG is valid and renders fine in a browser,
+		// but Chart.SaveImage produces raster output by rendering to SVG and reloading it
+		// through SKSvg, and that parse silently yields an empty picture for UTF-16 input. The
+		// result was a valid PNG or JPEG containing no chart content at all - the background
+		// fill and nothing else - while the SVG of the same chart was complete.
+		//
+		// UTF-8 is also what consumers expect of an .svg file; reading one with a UTF-8 reader
+		// previously failed on the first byte.
+		var writer = new XmlTextWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+		{
+			Formatting = Formatting.Indented
+		};
+		_canvas.Document.WriteContentTo(writer);
+		writer.Flush();
+	}
+
+	private void Draw(Chart chart, AxisHandlerResult axisHandlerResult, Series? pieSeries, Series? funnelSeries, AxisLayout? axisLayout)
+	{
 		Initialize(
 			chart,
 			out var defs,
@@ -74,23 +103,6 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 		{
 			_canvas.Document.DocumentElement!.AppendChild(border);
 		}
-
-		// Issue #27: UTF-8, not UTF-16.
-		//
-		// Encoding.Unicode is UTF-16 LE. A UTF-16 SVG is valid and renders fine in a browser,
-		// but Chart.SaveImage produces raster output by rendering to SVG and reloading it
-		// through SKSvg, and that parse silently yields an empty picture for UTF-16 input. The
-		// result was a valid PNG or JPEG containing no chart content at all - the background
-		// fill and nothing else - while the SVG of the same chart was complete.
-		//
-		// UTF-8 is also what consumers expect of an .svg file; reading one with a UTF-8 reader
-		// previously failed on the first byte.
-		var writer = new XmlTextWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
-		{
-			Formatting = Formatting.Indented
-		};
-		_canvas.Document.WriteContentTo(writer);
-		writer.Flush();
 	}
 
 	private void Initialize(

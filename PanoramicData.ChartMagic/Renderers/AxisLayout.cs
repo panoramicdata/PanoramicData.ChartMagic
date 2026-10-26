@@ -6,8 +6,12 @@ namespace PanoramicData.ChartMagic.Renderers;
 /// <remarks>
 /// MS-27510, MS-26633. X labels that would overlap are turned to -45 degrees, and thinned to every
 /// Nth when even that is too close. A margin too small for its labels and title grows, moving the
-/// plot's edge in, but never past half of the chart area; beyond that a label is shortened with an
-/// ellipsis. A chart whose labels already fit is left exactly as it was.
+/// plot's edge in, but never past half of the chart area or half of the plot; beyond that a label is
+/// shortened with an ellipsis, though a number never is. A chart whose labels already fit is left
+/// exactly as it was.
+///
+/// The margins are moved on the chart itself for the length of one render, and put back by
+/// <see cref="Restore"/>, so rendering a chart again lays it out from the same starting point.
 /// </remarks>
 internal sealed class AxisLayout
 {
@@ -24,11 +28,17 @@ internal sealed class AxisLayout
 	/// <summary>The sine and cosine of 45 degrees.</summary>
 	private static readonly double Diagonal = Math.Sqrt(0.5);
 
-	private AxisLayout(int xLabelAngle, IReadOnlyList<string?> xLabels, IReadOnlyList<string?> yLabels)
+	/// <summary>The most of the plot's own width or height a margin may grow into.</summary>
+	private const double MaximumPlotShare = 0.5;
+
+	private readonly Margins _original;
+
+	private AxisLayout(int xLabelAngle, IReadOnlyList<string?> xLabels, IReadOnlyList<string?> yLabels, Margins original)
 	{
 		XLabelAngle = xLabelAngle;
 		XLabels = xLabels;
 		YLabels = yLabels;
+		_original = original;
 	}
 
 	/// <summary>The angle the X labels are drawn at.</summary>
@@ -49,11 +59,15 @@ internal sealed class AxisLayout
 	/// </remarks>
 	internal static AxisLayout Apply(Chart chart, AxisHandlerResult axisHandlerResult, int widthPixels, int heightPixels)
 	{
+		var original = Margins.Of(chart);
 		var canvas = new Canvas(chart, axisHandlerResult, widthPixels, heightPixels);
 		var yLabels = FitYAxis(chart, canvas);
 		var (xLabelAngle, xLabels) = FitXAxis(chart, canvas);
-		return new(xLabelAngle, xLabels, ThinYAxis(chart, canvas, yLabels));
+		return new(xLabelAngle, xLabels, ThinYAxis(chart, canvas, yLabels), original);
 	}
+
+	/// <summary>Puts the chart's margins back as they were before <see cref="Apply"/>.</summary>
+	internal void Restore(Chart chart) => _original.ApplyTo(chart);
 
 	private static List<string?> FitYAxis(Chart chart, Canvas canvas)
 	{
@@ -81,7 +95,9 @@ internal sealed class AxisLayout
 		}
 
 		var chartAreaWidth = canvas.Width * chart.ChartArea.GetCanvasWidthPercent() / 100;
-		var target = Math.Min(labelsReach + titleRoom, Math.Max(stripWidth, chartAreaWidth * MaximumStripFraction));
+		var plotWidth = canvas.Width * innerPlot.GetCanvasWidthPercent() / 100;
+		var limit = Math.Min(chartAreaWidth * MaximumStripFraction, stripWidth + (plotWidth * MaximumPlotShare));
+		var target = Math.Min(labelsReach + titleRoom, Math.Max(stripWidth, limit));
 		var growth = (target - stripWidth) / chartAreaWidth * 100;
 		if (growth > 0)
 		{
@@ -90,7 +106,7 @@ internal sealed class AxisLayout
 			yAxis.WidthPercent += growth;
 		}
 
-		if (labelsReach + titleRoom <= target)
+		if (labelsReach + titleRoom <= target || !geometry.IsHorizontalPlot)
 		{
 			return labels;
 		}
@@ -227,6 +243,33 @@ internal sealed class AxisLayout
 
 	private static double Widest(IEnumerable<string?> labels, AxisArea axis)
 		=> labels.Max(label => label is null ? 0 : TextMeasure.Width(label, axis.FontSize, axis.FontWeight));
+
+	/// <summary>The margins a layout may move.</summary>
+	private sealed record Margins(double PlotX, double PlotY, double PlotWidth, double PlotHeight, double YAxisWidth, double XAxisHeight)
+	{
+		internal static Margins Of(Chart chart)
+		{
+			var area = chart.ChartArea;
+			return new(
+				area.InnerPlot.XPositionPercent,
+				area.InnerPlot.YPositionPercent,
+				area.InnerPlot.WidthPercent,
+				area.InnerPlot.HeightPercent,
+				area.YAxis.WidthPercent,
+				area.XAxis.HeightPercent);
+		}
+
+		internal void ApplyTo(Chart chart)
+		{
+			var area = chart.ChartArea;
+			area.InnerPlot.XPositionPercent = PlotX;
+			area.InnerPlot.YPositionPercent = PlotY;
+			area.InnerPlot.WidthPercent = PlotWidth;
+			area.InnerPlot.HeightPercent = PlotHeight;
+			area.YAxis.WidthPercent = YAxisWidth;
+			area.XAxis.HeightPercent = XAxisHeight;
+		}
+	}
 
 	/// <summary>The image size, and the plot as the chart's current margins leave it.</summary>
 	private sealed class Canvas(Chart chart, AxisHandlerResult axisHandlerResult, int width, int height)
