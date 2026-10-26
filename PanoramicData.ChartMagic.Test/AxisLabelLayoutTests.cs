@@ -306,4 +306,46 @@ public class AxisLabelLayoutTests
 
 		Labels(Render(specification), "yAxis").Should().AllSatisfy(label => label.Text.Should().NotContain("..."));
 	}
+
+	[Fact]
+	public void AShortPlot_GivesAtMostHalfItsHeightToTheLabels_AndStillRenders()
+	{
+		var categories = Enumerable.Range(1, 12).Select(index => $"A long category name {index}").ToArray();
+		var specification = Chart(SeriesChartType.Column, categories);
+		specification.InnerPlotHeightPercent = 30;
+		var document = Render(specification);
+
+		var plotHeight = Number(Elements(GroupById(document, "innerPlot"), "rect")[0], "height");
+		plotHeight.Should().BeApproximately(Height * 0.3 / 2, 0.5, "the plot gives up at most half of itself");
+		ShouldNotOverlap(Labels(document, "xAxis"));
+	}
+
+	[Theory]
+	[InlineData(15)]
+	[InlineData(75)]
+	public void RotatedLabelsNearTheLeftEdge_AreShortenedToStayInsideTheImage(int plotY)
+	{
+		// The strip already deep enough at 75, and needing to grow at 15.
+		var specification = Chart(SeriesChartType.Column, ["Medium length name", "Medium length two", "Medium length three"]);
+		specification.InnerPlotXPositionPercent = 3;
+		specification.InnerPlotYPositionPercent = plotY;
+		specification.InnerPlotHeightPercent = 100 - plotY - 10;
+		var chart = specification.ToChart();
+
+		var first = RenderedChart.Render(chart, Width, Height);
+		var labels = Labels(first, "xAxis");
+
+		labels.Should().AllSatisfy(label => label.Angle.Should().Be(-45));
+		ShouldBeInsideTheImage(labels);
+		RenderedChart.Render(chart, Width, Height).ToString().Should().Be(first.ToString(), "a second render lays out the same");
+	}
+
+	[Fact]
+	public void RotatedValueAxisNumbers_AreNeverShortened()
+	{
+		var specification = Chart(SeriesChartType.Bar, ["Mon", "Tue"]);
+		specification.SeriesList[0].Points = [new("Mon", 0, 123_456_789_012), new("Tue", 1, 223_456_789_012)];
+
+		Labels(RenderedChart.Render(specification, 300, Height), "xAxis").Should().AllSatisfy(label => label.Text.Should().NotContain("..."));
+	}
 }
