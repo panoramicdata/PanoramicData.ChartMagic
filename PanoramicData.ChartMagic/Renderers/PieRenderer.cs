@@ -29,7 +29,14 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 	/// Angles run clockwise from twelve o'clock, as they do in the Microsoft chart control, so a
 	/// start angle of zero puts the first slice boundary at the top.
 	/// </remarks>
-	internal void Plot(Series series, List<PieSlice> slices, XmlElement innerPlotNode, double plotWidth, double plotHeight)
+	internal void Plot(
+		Series series,
+		List<PieSlice> slices,
+		XmlElement innerPlotNode,
+		double plotWidth,
+		double plotHeight,
+		double imageTop = double.NegativeInfinity,
+		double imageBottom = double.PositiveInfinity)
 	{
 		if (slices.Count == 0)
 		{
@@ -75,7 +82,7 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 			return;
 		}
 
-		PlotPieLabels(series, slices, pieNode, centreX, centreY, radius, innerRadius);
+		PlotPieLabels(series, slices, pieNode, (centreX, centreY, radius, innerRadius), (imageTop, imageBottom));
 	}
 
 	/// <summary>
@@ -116,16 +123,15 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 		Series series,
 		List<PieSlice> slices,
 		XmlElement pieNode,
-		double centreX,
-		double centreY,
-		double radius,
-		double innerRadius)
+		(double CentreX, double CentreY, double Radius, double InnerRadius) pie,
+		(double Top, double Bottom) image)
 	{
+		var (centreX, centreY, radius, innerRadius) = pie;
 		var labelStyle = TextStyle.Unstroked(series.FontWeight, series.FontFamily, series.FontSize, series.FontColor);
 		var labelled = slices.Where(s => s.Label.Length > 0).ToList();
 
 		var placements = series.PieLabelStyle == PieLabelStyle.Outside
-			? OutsidePieLabels(series, labelled, pieNode, centreX, centreY, radius)
+			? OutsidePieLabels(series, labelled, pieNode, (centreX, centreY, radius), image)
 			: [.. labelled.Select(slice => InsidePieLabelPosition(centreX, centreY, radius, innerRadius, slice))];
 
 		foreach (var (slice, (at, alignment)) in labelled.Zip(placements))
@@ -168,16 +174,16 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 	/// MS-26610: as the Windows renderer draws them. Each line runs out from the middle of the
 	/// slice's arc, then level to its label, which reads away from the pie on its own side. Labels
 	/// on one side are kept a line apart, and each is held far enough out that no part of it lies
-	/// over the pie. A transparent line colour draws no lines.
+	/// over the pie and inside the image. A transparent line colour draws no lines.
 	/// </remarks>
 	private List<((double X, double Y) At, HorizontalAlignment Alignment)> OutsidePieLabels(
 		Series series,
 		List<PieSlice> slices,
 		XmlElement pieNode,
-		double centreX,
-		double centreY,
-		double radius)
+		(double CentreX, double CentreY, double Radius) pie,
+		(double Top, double Bottom) image)
 	{
+		var (centreX, centreY, radius) = pie;
 		var labels = slices
 			.Select(slice => new OutsideLabel(
 				PointOnCircle(centreX, centreY, radius, slice.MidAngleDegrees),
@@ -188,11 +194,20 @@ internal sealed class PieRenderer(SvgCanvas canvas)
 		var lineHeight = series.FontSize * 1.2;
 		foreach (var side in labels.GroupBy(label => label.OnTheRight))
 		{
-			var previous = double.NegativeInfinity;
-			foreach (var label in side.OrderBy(label => label.Elbow.Y))
+			// Pushed apart downwards, then back up from the bottom of the image where that ran off it.
+			var ordered = side.OrderBy(label => label.Elbow.Y).ToList();
+			var previous = image.Top + (lineHeight / 2) - lineHeight;
+			foreach (var label in ordered)
 			{
 				label.Y = Math.Max(label.Elbow.Y, previous + lineHeight);
 				previous = label.Y;
+			}
+
+			var next = image.Bottom - (lineHeight / 2) + lineHeight;
+			for (var i = ordered.Count - 1; i >= 0; i--)
+			{
+				ordered[i].Y = Math.Min(ordered[i].Y, next - lineHeight);
+				next = ordered[i].Y;
 			}
 		}
 

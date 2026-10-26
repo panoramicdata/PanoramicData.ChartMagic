@@ -372,6 +372,27 @@ public class PieTests
 		=> Elements(PieGroup(OutsidePie([34, 26, 18], Color.Transparent))!, "polyline").Should().BeEmpty();
 
 	[Fact]
+	public void PieChart_LabelStyleOutside_ManySmallSlices_KeepEveryLabelInsideTheImage()
+	{
+		// Pushed apart downwards only, labels of a run of small slices fell off the bottom of the image.
+		var specification = PieChartOf(
+			SeriesChartType.Pie,
+			PieLabelStyle.Outside,
+			[.. new double[] { 20, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 70 }.Select((value, index) => new ChartPoint($"Item {index}", index, value))]);
+		var document = Render(specification);
+		var plot = GroupById(document, "innerPlot");
+		var top = plot.AncestorsAndSelf().Sum(TranslationY);
+
+		var boxes = Elements(GroupById(document, "pie"), "text").Select(LabelBox).ToList();
+		boxes.Should().HaveCount(12);
+		boxes.Should().AllSatisfy(box =>
+		{
+			(box.Top + top).Should().BeGreaterThanOrEqualTo(0);
+			(box.Bottom + top).Should().BeLessThanOrEqualTo(Height);
+		});
+	}
+
+	[Fact]
 	public void PieChart_LabelStyleOutside_DoesNotShrinkThePie()
 	{
 		// Measured on the Windows renderer: 283 pixels across with outside labels, 285 with inside.
