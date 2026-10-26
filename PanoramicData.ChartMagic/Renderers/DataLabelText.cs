@@ -62,7 +62,7 @@ internal static partial class DataLabelText
 				"VALX" => point.XValueString ?? FormatNumber(point.XValue, format, culture),
 				"VALY" or "VAL" => FormatNumber(value, format, culture),
 				// The Microsoft chart control formats the share as a fraction, so P0 gives "33%".
-				"PERCENT" => (format is null ? null : Format(percentage / 100, format, culture))
+				"PERCENT" => (format is null ? null : Formatted(percentage / 100, format, culture))
 					?? percentage.ToString("0.00", culture) + "%",
 				"TOTAL" => FormatNumber(total, format, culture),
 				"LEGENDTEXT" => (point.LegendText ?? string.Empty) + Braced(format),
@@ -77,9 +77,9 @@ internal static partial class DataLabelText
 	internal static string FormatNumber(double value, CultureInfo culture) => value.ToString("0.##", culture);
 
 	private static string FormatNumber(double value, string? format, CultureInfo culture)
-		=> (format is null ? null : Format(value, format, culture)) ?? FormatNumber(value, culture);
+		=> (format is null ? null : Formatted(value, format, culture)) ?? FormatNumber(value, culture);
 
-	private static string? Format(double value, string format, CultureInfo culture)
+	private static string? Formatted(double value, string format, CultureInfo culture)
 	{
 		try
 		{
