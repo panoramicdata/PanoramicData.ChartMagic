@@ -25,6 +25,12 @@ internal sealed class AxisLayout
 
 	private const double EdgePaddingPixels = 2;
 
+	/// <summary>
+	/// Rounding headroom when fitting a label to a width worked out from that label: Linux measures
+	/// whole pixels, so the room left for the widest label is its own width less rounding error.
+	/// </summary>
+	private const double FitTolerancePixels = 0.01;
+
 	/// <summary>The sine and cosine of 45 degrees.</summary>
 	private static readonly double Diagonal = Math.Sqrt(0.5);
 
@@ -115,7 +121,7 @@ internal sealed class AxisLayout
 		// a useful length.
 		var labelRoom = target - yAxis.TickLengthPixels - AxisRenderer.TickLabelGapPixels;
 		var maximumWidth = labelRoom - titleRoom >= 3 * yAxis.FontSize ? labelRoom - titleRoom : labelRoom - EdgePaddingPixels;
-		return [.. labels.Select(label => label is null ? null : TextMeasure.Fit(label, maximumWidth, yAxis.FontSize, yAxis.FontWeight))];
+		return [.. labels.Select(label => label is null ? null : TextMeasure.Fit(label, maximumWidth + FitTolerancePixels, yAxis.FontSize, yAxis.FontWeight))];
 	}
 
 	private static (int Angle, List<string?> Labels) FitXAxis(Chart chart, Canvas canvas)
@@ -182,7 +188,7 @@ internal sealed class AxisLayout
 			if (labels[i] is { } label)
 			{
 				var widest = Math.Min(deepest, ((plotLeft + positions[i] - EdgePaddingPixels) / Diagonal) - (0.8 * fontSize));
-				labels[i] = TextMeasure.Fit(label, widest, fontSize, xAxis.FontWeight);
+				labels[i] = TextMeasure.Fit(label, widest + FitTolerancePixels, fontSize, xAxis.FontWeight);
 			}
 		}
 
