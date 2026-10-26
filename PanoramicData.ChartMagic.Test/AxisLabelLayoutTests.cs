@@ -130,6 +130,19 @@ public class AxisLabelLayoutTests
 
 	private static XDocument Render(ChartSpecification specification) => RenderedChart.Render(specification, Width, Height);
 
+	[Theory]
+	[InlineData("Device 1", "Device 2", "Device 3", "Device 4")]
+	[InlineData("2026-01-01", "2026-01-02", "2026-01-03")]
+	public void LabelsThatWouldOverlap_AreTurnedAndKeptApart(params string[] categories)
+	{
+		var labels = Labels(Render(Chart(SeriesChartType.Column, categories)), "xAxis");
+
+		labels.Should().HaveCount(categories.Length).And.AllSatisfy(label => label.Angle.Should().Be(-45));
+		labels.Select(label => label.Text).Should().Equal(categories, "they fit once turned, so none is shortened");
+		ShouldNotOverlap(labels);
+		ShouldBeInsideTheImage(labels);
+	}
+
 	[Fact]
 	public void LabelsThatFit_StayLevel()
 	{
@@ -137,6 +150,63 @@ public class AxisLabelLayoutTests
 
 		Labels(document, "xAxis").Should().AllSatisfy(label => label.Angle.Should().Be(0));
 		Translation(GroupById(document, "innerPlot")).Should().Be((48d, 32d), "a chart whose labels fit keeps its margins");
+	}
+
+	[Fact]
+	public void TheXTitle_SitsBelowTheLabels()
+	{
+		var specification = Chart(SeriesChartType.Column, ["Mon", "Tue", "Wed"]);
+		specification.XAxisTitle = "Day";
+		specification.YAxisTitle = "Percent";
+		var document = RenderedChart.Render(specification, 500, Height);
+
+		var title = Title(document, "xAxis");
+		Labels(document, "xAxis").Should().AllSatisfy(label =>
+			title.Top.Should().BeGreaterThanOrEqualTo(label.Bottom, $"'Day' must be below '{label.Text}'"));
+		title.Bottom.Should().BeLessThanOrEqualTo(Height + 0.01);
+	}
+
+	[Fact]
+	public void TheXTitle_SitsBelowRotatedLabels()
+	{
+		var specification = Chart(SeriesChartType.Column, ["Device 1", "Device 2", "Device 3", "Device 4"]);
+		specification.XAxisTitle = "Device";
+		var document = Render(specification);
+
+		var title = Title(document, "xAxis");
+		Labels(document, "xAxis").Should().AllSatisfy(label =>
+			title.Top.Should().BeGreaterThanOrEqualTo(label.Bottom, $"'Device' must be below '{label.Text}'"));
+		ShouldBeInsideTheImage([title]);
+	}
+
+	[Fact]
+	public void AVeryLongLabel_IsShortenedWithAnEllipsis_AndStaysInsideTheImage()
+	{
+		var specification = Chart(SeriesChartType.Column, ["A very long device name for the first server", "Another quite long device name here", "Short"]);
+		specification.XAxisTitle = "Device";
+		var document = Render(specification);
+
+		var labels = Labels(document, "xAxis");
+		labels[0].Text.Should().EndWith("...");
+		labels[^1].Text.Should().Be("Short");
+		ShouldNotOverlap(labels);
+		ShouldBeInsideTheImage([.. labels, Title(document, "xAxis")]);
+		Translation(GroupById(document, "innerPlot")).Y.Should().BeGreaterThan(0);
+		GroupById(document, "xAxis").Elements().First(e => e.Name.LocalName == "rect").Attribute("height")!.Value
+			.Should().Match(height => double.Parse(height, CultureInfo.InvariantCulture) <= Height * 0.5 + 0.01, "the axis takes at most half the chart area");
+	}
+
+	[Fact]
+	public void ManyCategories_AreLabelledEveryNth()
+	{
+		var categories = Enumerable.Range(1, 30).Select(day => $"2026-01-{day:00}").ToArray();
+		var document = Render(Chart(SeriesChartType.Column, categories));
+
+		var labels = Labels(document, "xAxis");
+		labels.Count.Should().BeInRange(2, categories.Length - 1, "some categories go unlabelled");
+		Elements(GroupById(document, "xAxis"), "line").Should().HaveCountGreaterThan(categories.Length, "every category keeps its tick");
+		ShouldNotOverlap(labels);
+		ShouldBeInsideTheImage(labels);
 	}
 
 	[Fact]
@@ -170,6 +240,31 @@ public class AxisLabelLayoutTests
 		var titleBox = BoxOf(title);
 		titleBox.Left.Should().BeGreaterThanOrEqualTo(0);
 		labels.Should().AllSatisfy(label => titleBox.Right.Should().BeLessThanOrEqualTo(label.Left));
+	}
+
+	[Fact]
+	public void BarChartCategories_AreNeverClipped_AndTakeAtMostHalfTheChartArea()
+	{
+		var specification = Chart(SeriesChartType.Bar, ["A very long device name for the first server", "Another quite long device name here", "Short"]);
+		specification.YAxisTitle = "Device";
+		var document = Render(specification);
+
+		var labels = Labels(document, "yAxis");
+		labels.Should().Contain(label => label.Text.EndsWith("...", StringComparison.Ordinal));
+		labels.Should().Contain(label => label.Text == "Short");
+		labels.Should().AllSatisfy(label => label.Left.Should().BeGreaterThanOrEqualTo(0, $"'{label.Text}' must not be cut off"));
+		ShouldNotOverlap(labels);
+		TranslationX(GroupById(document, "innerPlot")).Should().BeLessThanOrEqualTo((Width * 0.8 * 0.5) + 0.01);
+	}
+
+	[Fact]
+	public void BarChartWithManyCategories_LabelsEveryNth()
+	{
+		var categories = Enumerable.Range(1, 30).Select(day => $"Day {day}").ToArray();
+		var labels = Labels(Render(Chart(SeriesChartType.Bar, categories)), "yAxis");
+
+		labels.Count.Should().BeInRange(2, categories.Length - 1);
+		ShouldNotOverlap(labels);
 	}
 
 	[Fact]
