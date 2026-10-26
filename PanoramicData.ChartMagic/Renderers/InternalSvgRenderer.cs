@@ -14,13 +14,21 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 
 	internal void SaveImage(Stream stream, Chart chart)
 	{
+		var axisHandlerResult = new AxisHandler(chart).Process();
+		var pieSeries = chart.Series.FirstOrDefault(PieRenderer.IsPie);
+		var funnelSeries = chart.Series.FirstOrDefault(FunnelRenderer.IsFunnel);
+
+		// Before anything is placed, since it may move the plot's edges to make room for the labels.
+		var axisLayout = pieSeries is null && funnelSeries is null
+			? AxisLayout.Apply(chart, axisHandlerResult, widthPixels, heightPixels)
+			: null;
+
 		Initialize(
 			chart,
 			out var defs,
 			out var chartBackgroundAreaNode,
 			out var chartAreaNode,
-			out var innerPlotNode,
-			out var axisHandlerResult);
+			out var innerPlotNode);
 
 		var geometry = new PlotGeometry(
 			chart,
@@ -32,8 +40,6 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 
 		// A pie has no axes, so it takes a different path entirely: no gridlines, no axis
 		// strips, and a legend that describes slices rather than series.
-		var pieSeries = chart.Series.FirstOrDefault(PieRenderer.IsPie);
-		var funnelSeries = chart.Series.FirstOrDefault(FunnelRenderer.IsFunnel);
 		if (funnelSeries is not null)
 		{
 			// A funnel has no axes either, and like a pie its legend describes points, not series.
@@ -56,7 +62,7 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 
 			new SeriesRenderer(_canvas).PlotSeries(chart, geometry, defs, innerPlotNode);
 
-			axes.PlotAxes(chart, geometry, chartAreaNode);
+			axes.PlotAxes(chart, geometry, axisLayout!, chartAreaNode);
 
 			legends.PlotLegends(chart, chartBackgroundAreaNode);
 		}
@@ -91,8 +97,7 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 		out XmlElement defs,
 		out XmlElement chartBackgroundAreaNode,
 		out XmlElement chartAreaNode,
-		out XmlElement innerPlotNode,
-		out AxisHandlerResult axisHandlerResult)
+		out XmlElement innerPlotNode)
 	{
 		var document = _canvas.Document;
 
@@ -139,8 +144,6 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 		// Inner Plot background
 		innerPlotNode = _canvas.PositionedGroup(chart.ChartArea.InnerPlot, "innerPlot", chart.ChartArea);
 		chartAreaNode.AppendChild(innerPlotNode);
-
-		axisHandlerResult = new AxisHandler(chart).Process();
 	}
 
 	private void PlotAnnotations(Chart chart, XmlElement chartBackgroundAreaNode)

@@ -1,0 +1,184 @@
+using PanoramicData.ChartMagic.Renderers;
+using System.Globalization;
+using System.Xml.Linq;
+using PanoramicData.ChartMagic.Test.Support;
+using static PanoramicData.ChartMagic.Test.Support.RenderedChart;
+
+namespace PanoramicData.ChartMagic.Test;
+
+/// <summary>
+/// MS-27510 and MS-26633: axis labels and titles never overlap one another and are never clipped.
+/// </summary>
+/// <remarks>
+/// Every box is the measured text, a line of its font size high, rotated as drawn and placed in
+/// image coordinates, so an assertion here is about what a reader sees.
+/// </remarks>
+public class AxisLabelLayoutTests
+{
+	private const int Width = 600;
+	private const int Height = 320;
+
+	private static readonly string[] Days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+	private static ChartSpecification Chart(SeriesChartType chartType, string[] categories, double fontSize = 26.67)
+		=> new()
+		{
+			ChartAreaWidthPercent = 80,
+			InnerPlotXPositionPercent = 10,
+			InnerPlotYPositionPercent = 15,
+			InnerPlotWidthPercent = 85,
+			InnerPlotHeightPercent = 75,
+			XAxisFontSize = fontSize,
+			YAxisFontSize = fontSize,
+			SeriesList =
+			[
+				new()
+				{
+					ChartType = chartType,
+					Points = [.. categories.Select((category, index) => new ChartPoint(category, index, (index % 5) + 1))]
+				}
+			]
+		};
+
+	private sealed record Box(string Text, double Left, double Top, double Right, double Bottom, double Angle, double FontSize, (double X, double Y) Anchor);
+
+	/// <summary>The boxes of the text in an axis group, in image coordinates.</summary>
+	private static List<Box> Boxes(XDocument document, string axisId)
+		=> [.. Elements(GroupById(document, axisId), "text").Select(BoxOf)];
+
+	private static Box BoxOf(XElement text)
+	{
+		var fontSize = Number(text, "font-size");
+		var width = TextMeasure.Width(text.Value, fontSize);
+		var x = Number(text, "x");
+		var y = Number(text, "y");
+		var start = text.Attribute("text-anchor")!.Value switch
+		{
+			"start" => 0,
+			"end" => -width,
+			_ => -width / 2
+		};
+
+		var angle = 0d;
+		if (text.Attribute("transform")?.Value is { } transform)
+		{
+			angle = double.Parse(transform["rotate(".Length..].Split(' ')[0], CultureInfo.InvariantCulture);
+		}
+
+		var (offsetX, offsetY) = text.Ancestors().Select(Translation).Aggregate((0d, 0d), (sum, t) => (sum.Item1 + t.X, sum.Item2 + t.Y));
+		var radians = angle * Math.PI / 180;
+		var corners = new[] { (start, -0.8 * fontSize), (start + width, -0.8 * fontSize), (start, 0.2 * fontSize), (start + width, 0.2 * fontSize) }
+			.Select(corner => (
+				X: x + offsetX + (corner.Item1 * Math.Cos(radians)) - (corner.Item2 * Math.Sin(radians)),
+				Y: y + offsetY + (corner.Item1 * Math.Sin(radians)) + (corner.Item2 * Math.Cos(radians))))
+			.ToList();
+
+		return new Box(
+			text.Value,
+			corners.Min(c => c.X),
+			corners.Min(c => c.Y),
+			corners.Max(c => c.X),
+			corners.Max(c => c.Y),
+			angle,
+			fontSize,
+			(x + offsetX, y + offsetY));
+	}
+
+	private static bool IsTitle(XElement text) => text.Attribute("id")!.Value.EndsWith("Title", StringComparison.Ordinal);
+
+	private static List<Box> Labels(XDocument document, string axisId)
+		=> [.. Elements(GroupById(document, axisId), "text").Where(text => !IsTitle(text)).Select(BoxOf)];
+
+	private static Box Title(XDocument document, string axisId)
+		=> BoxOf(Elements(GroupById(document, axisId), "text").Single(IsTitle));
+
+	/// <summary>
+	/// Whether two labels overlap. Labels drawn at the same angle are parallel bands a line high, so
+	/// rotated ones are apart when their baselines are a line apart.
+	/// </summary>
+	private static bool Overlap(Box a, Box b)
+	{
+		if (a.Angle == 0 && b.Angle == 0)
+		{
+			return a.Left < b.Right && b.Left < a.Right && a.Top < b.Bottom && b.Top < a.Bottom;
+		}
+
+		var radians = a.Angle * Math.PI / 180;
+		var across = Math.Abs(((b.Anchor.X - a.Anchor.X) * -Math.Sin(radians)) + ((b.Anchor.Y - a.Anchor.Y) * Math.Cos(radians)));
+		return across < a.FontSize;
+	}
+
+	private static void ShouldNotOverlap(List<Box> labels)
+	{
+		for (var i = 0; i < labels.Count; i++)
+		{
+			for (var j = i + 1; j < labels.Count; j++)
+			{
+				Overlap(labels[i], labels[j]).Should().BeFalse($"'{labels[i].Text}' and '{labels[j].Text}' must not overlap");
+			}
+		}
+	}
+
+	private static void ShouldBeInsideTheImage(IEnumerable<Box> boxes)
+		=> boxes.Should().AllSatisfy(box =>
+		{
+			box.Left.Should().BeGreaterThanOrEqualTo(0, $"'{box.Text}' must not be cut off on the left");
+			box.Top.Should().BeGreaterThanOrEqualTo(0, $"'{box.Text}' must not be cut off at the top");
+			box.Right.Should().BeLessThanOrEqualTo(Width, $"'{box.Text}' must not be cut off on the right");
+			box.Bottom.Should().BeLessThanOrEqualTo(Height + 0.01, $"'{box.Text}' must not be cut off at the bottom");
+		});
+
+	private static XDocument Render(ChartSpecification specification) => RenderedChart.Render(specification, Width, Height);
+
+	[Fact]
+	public void LabelsThatFit_StayLevel()
+	{
+		var document = Render(Chart(SeriesChartType.Column, Days, 16));
+
+		Labels(document, "xAxis").Should().AllSatisfy(label => label.Angle.Should().Be(0));
+		Translation(GroupById(document, "innerPlot")).Should().Be((48d, 32d), "a chart whose labels fit keeps its margins");
+	}
+
+	[Fact]
+	public void YLabels_And_YTitle_AreNeverClipped_EvenWithAnExplicitPlotPosition()
+	{
+		// MS-26633: the ticket's layout, where "3,500%" lost its first digit and "Percent" was dropped.
+		var specification = new ChartSpecification
+		{
+			ChartAreaWidthPercent = 80,
+			InnerPlotXPositionPercent = 10,
+			InnerPlotYPositionPercent = 15,
+			InnerPlotWidthPercent = 85,
+			InnerPlotHeightPercent = 75,
+			XAxisFontSize = 16,
+			YAxisFontSize = 16,
+			YAxisLabelFormat = "P0",
+			XAxisTitle = "Day",
+			YAxisTitle = "Percent",
+			SeriesList = [new() { ChartType = SeriesChartType.Line, Points = [.. Days.Select((day, index) => new ChartPoint(day, index, 12 + (index * 3)))] }]
+		};
+		var chart = specification.ToChart();
+		chart.Culture = CultureInfo.GetCultureInfo("en-GB");
+		var document = RenderedChart.Render(chart, 720, 380);
+
+		var labels = Labels(document, "yAxis");
+		labels.Should().Contain(label => label.Text == "3,500%");
+		labels.Should().AllSatisfy(label => label.Left.Should().BeGreaterThanOrEqualTo(0, $"'{label.Text}' must be whole"));
+
+		var title = Elements(GroupById(document, "yAxis"), "text").Single(IsTitle);
+		Number(title, "font-size").Should().Be(16, "the title keeps its size");
+		var titleBox = BoxOf(title);
+		titleBox.Left.Should().BeGreaterThanOrEqualTo(0);
+		labels.Should().AllSatisfy(label => titleBox.Right.Should().BeLessThanOrEqualTo(label.Left));
+	}
+
+	[Fact]
+	public void TheLayout_DoesNotDriftWhenTheSameChartIsRenderedAgain()
+	{
+		var chart = Chart(SeriesChartType.Column, ["Device 1", "Device 2", "Device 3", "Device 4"]).ToChart();
+
+		var first = RenderedChart.Render(chart, Width, Height).ToString();
+
+		RenderedChart.Render(chart, Width, Height).ToString().Should().Be(first);
+	}
+}

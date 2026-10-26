@@ -11,7 +11,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 	/// <summary>
 	/// Gap between a tick mark and the label that belongs to it, in pixels.
 	/// </summary>
-	private const double TickLabelGapPixels = 4;
+	internal const double TickLabelGapPixels = 4;
 
 	/// <summary>
 	/// A positioned group for an axis, aligned to the plot it annotates.
@@ -187,7 +187,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 	/// <summary>
 	/// Draws the axis strips: their backgrounds, then the axis line, ticks, labels and title.
 	/// </summary>
-	internal void PlotAxes(Chart chart, PlotGeometry geometry, XmlElement chartAreaNode)
+	internal void PlotAxes(Chart chart, PlotGeometry geometry, AxisLayout layout, XmlElement chartAreaNode)
 	{
 		// X Axis
 		var xAxis = chart.ChartArea.XAxis;
@@ -195,7 +195,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 		chartAreaNode.AppendChild(xAxisNode);
 		if (xAxis.IsEnabled && xAxis.LabelsEnabled)
 		{
-			DrawXAxis(chart, geometry, xAxis, xAxisNode);
+			DrawXAxis(chart, geometry, layout, xAxis, xAxisNode);
 		}
 
 		// Y Axis
@@ -204,7 +204,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 		chartAreaNode.AppendChild(yAxisNode);
 		if (yAxis.IsEnabled && yAxis.LabelsEnabled)
 		{
-			DrawYAxis(chart, geometry, yAxis, yAxisNode);
+			DrawYAxis(chart, geometry, layout, yAxis, yAxisNode);
 		}
 	}
 
@@ -213,7 +213,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 	/// origin, so a local X coordinate in one is the same local X coordinate in the other, and
 	/// the strip top edge is the plot bottom edge.
 	/// </summary>
-	private void DrawXAxis(Chart chart, PlotGeometry geometry, AxisArea xAxis, XmlElement xAxisNode)
+	private void DrawXAxis(Chart chart, PlotGeometry geometry, AxisLayout layout, AxisArea xAxis, XmlElement xAxisNode)
 	{
 		var axisHeight = _canvas.HeightPixels * xAxis.GetCanvasHeightPercent() / 100;
 
@@ -221,17 +221,18 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 
 		var tickLength = xAxis.TickLengthPixels;
 		var labelY = tickLength + TickLabelGapPixels;
-		var isRotated = xAxis.LabelAngle != 0;
+		var isRotated = layout.XLabelAngle != 0;
 		var labelStyle = TextStyle.Unstroked(xAxis.FontWeight, xAxis.FontFamily, xAxis.FontSize, xAxis.FontColor);
 
-		foreach (var value in XAxisTickValues(chart, geometry))
+		foreach (var (value, label) in XAxisTickValues(chart, geometry).Zip(layout.XLabels))
 		{
 			var x = XAxisPixels(geometry, value);
 			xAxisNode.AppendChild(_canvas.Line(x, 0, x, tickLength, xAxis.LineColor, xAxis.LineWidth));
 
-			var label = geometry.IsHorizontalPlot
-				? FormatAxisValue(value, xAxis, chart.Culture)
-				: geometry.CategoryLabel(value) ?? FormatAxisValue(value, xAxis, chart.Culture);
+			if (label is null)
+			{
+				continue;
+			}
 
 			xAxisNode.AppendChild(
 				_canvas.Text(
@@ -244,7 +245,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 					isRotated ? HorizontalAlignment.Right : HorizontalAlignment.Center,
 					VerticalAlignment.Top,
 					labelStyle,
-					xAxis.LabelAngle));
+					layout.XLabelAngle));
 		}
 
 		if (xAxis.Title is { Length: > 0 })
@@ -268,7 +269,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 	/// The Y axis strip sits immediately left of the plot and shares its height, so the axis
 	/// line is drawn along the strip right-hand edge, which is the plot left edge.
 	/// </summary>
-	private void DrawYAxis(Chart chart, PlotGeometry geometry, AxisArea yAxis, XmlElement yAxisNode)
+	private void DrawYAxis(Chart chart, PlotGeometry geometry, AxisLayout layout, AxisArea yAxis, XmlElement yAxisNode)
 	{
 		var axisWidth = _canvas.WidthPixels * yAxis.GetCanvasWidthPercent() / 100;
 
@@ -279,15 +280,17 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 		var labelStyle = TextStyle.Unstroked(yAxis.FontWeight, yAxis.FontFamily, yAxis.FontSize, yAxis.FontColor);
 		var widestLabel = 0d;
 
-		foreach (var value in YAxisTickValues(chart, geometry))
+		foreach (var (value, label) in YAxisTickValues(chart, geometry).Zip(layout.YLabels))
 		{
 			var y = geometry.IsHorizontalPlot ? geometry.CategoryToPixels(value) : geometry.YToPixels(value);
 			yAxisNode.AppendChild(
 				_canvas.Line(axisWidth - tickLength, y, axisWidth, y, yAxis.LineColor, yAxis.LineWidth));
 
-			var label = geometry.IsHorizontalPlot
-				? geometry.CategoryLabel(value) ?? FormatAxisValue(value, yAxis, chart.Culture)
-				: FormatAxisValue(value, yAxis, chart.Culture);
+			if (label is null)
+			{
+				continue;
+			}
+
 			widestLabel = Math.Max(widestLabel, TextMeasure.Width(label, yAxis.FontSize, yAxis.FontWeight));
 
 			yAxisNode.AppendChild(
@@ -322,10 +325,13 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 
 	private const double TitleEdgeGapPixels = 1;
 
+	/// <summary>The space a Y axis title keeps from the image edge and from the labels, together.</summary>
+	internal const double YAxisTitleClearancePixels = (2 * TitleEdgeGapPixels) + TickLabelGapPixels;
+
 	private const double TitleAscentFraction = 0.8;
 
 	/// <summary>The smallest a Y axis title is shrunk to before it is left out.</summary>
-	private const double MinimumTitleFontSize = 8;
+	internal const double MinimumTitleFontSize = 8;
 
 	/// <summary>
 	/// The size the Y axis title can be drawn at in the space left of the labels, or null if none.
@@ -337,12 +343,24 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 	/// </remarks>
 	private static double? YAxisTitleFontSize(double labelsLeftEdge, double fontSize)
 	{
-		var available = labelsLeftEdge - (2 * TitleEdgeGapPixels) - TickLabelGapPixels;
+		var available = labelsLeftEdge - YAxisTitleClearancePixels;
 		var fitted = Math.Min(fontSize, available);
 		return fitted >= MinimumTitleFontSize ? fitted : null;
 	}
 
-	private static double XAxisPixels(PlotGeometry geometry, double value)
+	/// <summary>The label an X tick has before any is thinned or shortened.</summary>
+	internal static string XAxisLabel(Chart chart, PlotGeometry geometry, double value)
+		=> geometry.IsHorizontalPlot
+			? FormatAxisValue(value, chart.ChartArea.XAxis, chart.Culture)
+			: geometry.CategoryLabel(value) ?? FormatAxisValue(value, chart.ChartArea.XAxis, chart.Culture);
+
+	/// <summary>The label a Y tick has before any is thinned or shortened.</summary>
+	internal static string YAxisLabel(Chart chart, PlotGeometry geometry, double value)
+		=> geometry.IsHorizontalPlot
+			? geometry.CategoryLabel(value) ?? FormatAxisValue(value, chart.ChartArea.YAxis, chart.Culture)
+			: FormatAxisValue(value, chart.ChartArea.YAxis, chart.Culture);
+
+	internal static double XAxisPixels(PlotGeometry geometry, double value)
 		=> geometry.IsHorizontalPlot
 			? geometry.ValueToPixels(value)
 			: geometry.IsCategorical ? geometry.CategoryToPixels(value) : geometry.XToPixels(value);
@@ -351,7 +369,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 	/// The values the X axis is labelled at: one per category when the axis is categorical, the
 	/// value scale for a bar chart, and readable intervals across the range otherwise.
 	/// </summary>
-	private static IReadOnlyList<double> XAxisTickValues(Chart chart, PlotGeometry geometry)
+	internal static IReadOnlyList<double> XAxisTickValues(Chart chart, PlotGeometry geometry)
 	{
 		if (geometry.IsHorizontalPlot)
 		{
@@ -383,7 +401,7 @@ internal sealed class AxisRenderer(SvgCanvas canvas)
 	/// <summary>
 	/// The values the Y axis is labelled at.
 	/// </summary>
-	private static IReadOnlyList<double> YAxisTickValues(Chart chart, PlotGeometry geometry)
+	internal static IReadOnlyList<double> YAxisTickValues(Chart chart, PlotGeometry geometry)
 	{
 		if (geometry.IsHorizontalPlot)
 		{
