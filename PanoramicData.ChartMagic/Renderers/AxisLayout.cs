@@ -39,7 +39,7 @@ internal sealed class AxisLayout
 
 	private readonly Margins _original;
 
-	private AxisLayout(int xLabelAngle, IReadOnlyList<string?> xLabels, IReadOnlyList<string?> yLabels, Margins original)
+	internal AxisLayout(int xLabelAngle, IReadOnlyList<string?> xLabels, IReadOnlyList<string?> yLabels, Margins original)
 	{
 		XLabelAngle = xLabelAngle;
 		XLabels = xLabels;
@@ -84,45 +84,77 @@ internal sealed class AxisLayout
 			.Select(value => (string?)AxisRenderer.YAxisLabel(chart, geometry, value))
 			.ToList();
 
-		var aligned = Math.Abs(yAxis.XPositionPercent + yAxis.WidthPercent - innerPlot.XPositionPercent) < 0.01;
-		if (!yAxis.IsEnabled || !yAxis.LabelsEnabled || yAxis.LabelAngle != 0 || labels.Count == 0 || !aligned)
+		if (!IsFittable(yAxis, labels.Count, yAxis.XPositionPercent + yAxis.WidthPercent, innerPlot.XPositionPercent))
 		{
 			return labels;
 		}
 
 		var stripWidth = canvas.Width * yAxis.GetCanvasWidthPercent() / 100;
 		var labelsReach = yAxis.TickLengthPixels + AxisRenderer.TickLabelGapPixels + Widest(labels, yAxis);
-		var titleRoom = yAxis.Title is { Length: > 0 } ? yAxis.FontSize + AxisRenderer.YAxisTitleClearancePixels : EdgePaddingPixels;
-		var titleDropped = yAxis.Title is { Length: > 0 }
-			&& stripWidth - labelsReach - AxisRenderer.YAxisTitleClearancePixels < AxisRenderer.MinimumTitleFontSize;
-		if (labelsReach + EdgePaddingPixels <= stripWidth && !titleDropped)
+		if (!YAxisNeedsRoom(yAxis, stripWidth, labelsReach))
 		{
 			return labels;
 		}
 
+		var titleRoom = TitleRoom(yAxis, yAxis.FontSize + AxisRenderer.YAxisTitleClearancePixels);
 		var chartAreaWidth = canvas.Width * chart.ChartArea.GetCanvasWidthPercent() / 100;
-		var plotWidth = canvas.Width * innerPlot.GetCanvasWidthPercent() / 100;
-		var limit = Math.Min(chartAreaWidth * MaximumStripFraction, stripWidth + (plotWidth * MaximumPlotShare));
-		var target = Math.Min(labelsReach + titleRoom, Math.Max(stripWidth, limit));
-		var growth = (target - stripWidth) / chartAreaWidth * 100;
-		if (growth > 0)
-		{
-			innerPlot.XPositionPercent += growth;
-			innerPlot.WidthPercent -= growth;
-			yAxis.WidthPercent += growth;
-		}
+		var target = Target(stripWidth, labelsReach + titleRoom, chartAreaWidth, canvas.Width * innerPlot.GetCanvasWidthPercent() / 100);
+		GrowLeftMargin(chart, (target - stripWidth) / chartAreaWidth * 100);
 
-		if (labelsReach + titleRoom <= target || !geometry.IsHorizontalPlot)
-		{
-			return labels;
-		}
-
-		// Capped: the labels are shortened, keeping room for the title only while that leaves them
-		// a useful length.
-		var labelRoom = target - yAxis.TickLengthPixels - AxisRenderer.TickLabelGapPixels;
-		var maximumWidth = labelRoom - titleRoom >= 3 * yAxis.FontSize ? labelRoom - titleRoom : labelRoom - EdgePaddingPixels;
-		return [.. labels.Select(label => label is null ? null : TextMeasure.Fit(label, maximumWidth + FitTolerancePixels, yAxis.FontSize, yAxis.FontWeight))];
+		return labelsReach + titleRoom <= target || !geometry.IsHorizontalPlot
+			? labels
+			: ShortenYLabels(yAxis, labels, target, titleRoom);
 	}
+
+	/// <summary>Whether an axis's labels are this layout's to fit: drawn, level, and in a strip that meets the plot.</summary>
+	private static bool IsFittable(AxisArea axis, int labelCount, double stripEdgePercent, double plotEdgePercent)
+		=> axis.IsEnabled
+			&& axis.LabelsEnabled
+			&& axis.LabelAngle == 0
+			&& labelCount > 0
+			&& Math.Abs(stripEdgePercent - plotEdgePercent) < 0.01;
+
+	/// <summary>Whether a Y label is cut off, or the title would be too small to read.</summary>
+	private static bool YAxisNeedsRoom(AxisArea yAxis, double stripWidth, double labelsReach)
+		=> labelsReach + EdgePaddingPixels > stripWidth
+			|| (HasTitle(yAxis) && stripWidth - labelsReach - AxisRenderer.YAxisTitleClearancePixels < AxisRenderer.MinimumTitleFontSize);
+
+	private static bool HasTitle(AxisArea axis) => axis.Title is { Length: > 0 };
+
+	private static double TitleRoom(AxisArea axis, double roomWithTitle) => HasTitle(axis) ? roomWithTitle : EdgePaddingPixels;
+
+	/// <summary>
+	/// The size a strip grows to for what it needs, never past half of the chart area or half of the
+	/// plot, and never smaller than it is.
+	/// </summary>
+	private static double Target(double strip, double needed, double chartArea, double plot)
+		=> Math.Min(needed, Math.Max(strip, Math.Min(chartArea * MaximumStripFraction, strip + (plot * MaximumPlotShare))));
+
+	private static void GrowLeftMargin(Chart chart, double growthPercent)
+	{
+		if (growthPercent <= 0)
+		{
+			return;
+		}
+
+		chart.ChartArea.InnerPlot.XPositionPercent += growthPercent;
+		chart.ChartArea.InnerPlot.WidthPercent -= growthPercent;
+		chart.ChartArea.YAxis.WidthPercent += growthPercent;
+	}
+
+	/// <summary>
+	/// Category labels shortened to the capped strip, keeping room for the title only while that
+	/// leaves them a useful length.
+	/// </summary>
+	private static List<string?> ShortenYLabels(AxisArea yAxis, List<string?> labels, double stripWidth, double titleRoom)
+	{
+		var labelRoom = stripWidth - yAxis.TickLengthPixels - AxisRenderer.TickLabelGapPixels;
+		var maximumWidth = labelRoom - titleRoom >= 3 * yAxis.FontSize ? labelRoom - titleRoom : labelRoom - EdgePaddingPixels;
+		return [.. labels.Select(label => Fit(label, maximumWidth, yAxis))];
+	}
+
+	private static string? Fit(string? label, double maximumWidth, AxisArea axis)
+		=> label is null ? null : TextMeasure.Fit(label, maximumWidth + FitTolerancePixels, axis.FontSize, axis.FontWeight);
 
 	private static (int Angle, List<string?> Labels) FitXAxis(Chart chart, Canvas canvas)
 	{
@@ -253,7 +285,7 @@ internal sealed class AxisLayout
 		=> labels.Max(label => label is null ? 0 : TextMeasure.Width(label, axis.FontSize, axis.FontWeight));
 
 	/// <summary>The margins a layout may move.</summary>
-	private sealed record Margins(double PlotX, double PlotY, double PlotWidth, double PlotHeight, double YAxisWidth, double XAxisHeight)
+	internal sealed record Margins(double PlotX, double PlotY, double PlotWidth, double PlotHeight, double YAxisWidth, double XAxisHeight)
 	{
 		internal static Margins Of(Chart chart)
 		{
