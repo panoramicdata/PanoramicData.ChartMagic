@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace PanoramicData.ChartMagic.Renderers;
 
 /// <summary>
@@ -5,12 +7,22 @@ namespace PanoramicData.ChartMagic.Renderers;
 /// keywords that appear in report templates.
 /// </summary>
 /// <remarks>
-/// This used to live in the pie renderer and serve pies alone, so label text on any other chart
-/// type drew nothing at all. It is shared now by pies, funnels and every series drawn against
-/// axes.
+/// Shared by pies, funnels and every series drawn against axes.
 /// </remarks>
-internal static class DataLabelText
+internal static partial class DataLabelText
 {
+	/// <summary>
+	/// A keyword, with the .NET format string that may follow it in braces: #PERCENT{P0}.
+	/// </summary>
+	/// <remarks>
+	/// The longer keywords come first in the alternation, because #VAL and #SER are prefixes of
+	/// others. One pass, so a substituted value is never searched for keywords itself.
+	/// </remarks>
+	[GeneratedRegex(
+		@"#(?<keyword>VALX|VALY|VAL|PERCENT|TOTAL|LEGENDTEXT|SERIESNAME|SER)(?:\{(?<format>[^{}]*)\})?",
+		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+	private static partial Regex KeywordPattern();
+
 	/// <summary>
 	/// The label for a point, or null when the series has no label text.
 	/// </summary>
@@ -22,12 +34,9 @@ internal static class DataLabelText
 	/// <param name="total">The series total.</param>
 	/// <param name="culture">The culture numbers are written in; invariant when null.</param>
 	/// <remarks>
-	/// The keyword set is deliberately small: these are what appears in practice. An unrecognised
-	/// keyword is left in place rather than blanked, so that it shows up as itself on the chart
-	/// instead of vanishing silently.
-	///
-	/// #VAL is the Microsoft chart shorthand for #VALY. It is replaced after #VALX and #VALY,
-	/// because it is a prefix of both.
+	/// An unrecognised keyword is left in place rather than blanked, so it shows on the chart as
+	/// itself instead of vanishing. A format the value cannot take falls back to the unformatted
+	/// value. A format after a text keyword is not a number format, so it is left as written.
 	/// </remarks>
 	internal static string? Substitute(
 		string? text,
@@ -44,21 +53,43 @@ internal static class DataLabelText
 		}
 
 		culture ??= CultureInfo.InvariantCulture;
-		var formattedValue = FormatNumber(value, culture);
 
-		return text
-			.Replace("#VALX", point.XValueString ?? FormatNumber(point.XValue, culture), StringComparison.OrdinalIgnoreCase)
-			.Replace("#VALY", formattedValue, StringComparison.OrdinalIgnoreCase)
-			.Replace("#VAL", formattedValue, StringComparison.OrdinalIgnoreCase)
-			.Replace("#PERCENT", percentage.ToString("0.00", culture) + "%", StringComparison.OrdinalIgnoreCase)
-			.Replace("#TOTAL", FormatNumber(total, culture), StringComparison.OrdinalIgnoreCase)
-			.Replace("#LEGENDTEXT", point.LegendText ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-			.Replace("#SERIESNAME", seriesName ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-			.Replace("#SER", seriesName ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+		return KeywordPattern().Replace(text, match =>
+		{
+			var format = match.Groups["format"] is { Success: true } group ? group.Value : null;
+			return match.Groups["keyword"].Value.ToUpperInvariant() switch
+			{
+				"VALX" => point.XValueString ?? FormatNumber(point.XValue, format, culture),
+				"VALY" or "VAL" => FormatNumber(value, format, culture),
+				// The Microsoft chart control formats the share as a fraction, so P0 gives "33%".
+				"PERCENT" => (format is null ? null : Format(percentage / 100, format, culture))
+					?? percentage.ToString("0.00", culture) + "%",
+				"TOTAL" => FormatNumber(total, format, culture),
+				"LEGENDTEXT" => (point.LegendText ?? string.Empty) + Braced(format),
+				_ => (seriesName ?? string.Empty) + Braced(format)
+			};
+		});
 	}
 
 	/// <summary>
 	/// A number as a label shows it: up to two decimal places, and none when it is whole.
 	/// </summary>
 	internal static string FormatNumber(double value, CultureInfo culture) => value.ToString("0.##", culture);
+
+	private static string FormatNumber(double value, string? format, CultureInfo culture)
+		=> (format is null ? null : Format(value, format, culture)) ?? FormatNumber(value, culture);
+
+	private static string? Format(double value, string format, CultureInfo culture)
+	{
+		try
+		{
+			return value.ToString(format, culture);
+		}
+		catch (FormatException)
+		{
+			return null;
+		}
+	}
+
+	private static string Braced(string? format) => format is null ? string.Empty : "{" + format + "}";
 }
