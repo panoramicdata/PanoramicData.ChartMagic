@@ -348,4 +348,82 @@ public class AxisLabelLayoutTests
 
 		Labels(RenderedChart.Render(specification, 300, Height), "xAxis").Should().AllSatisfy(label => label.Text.Should().NotContain("..."));
 	}
+
+	private static readonly string[] LongNames = ["A very long device name for the first server", "Another quite long device name here ok", "Short"];
+
+	[Theory]
+	[InlineData(-45)]
+	[InlineData(-30)]
+	[InlineData(-60)]
+	[InlineData(-90)]
+	public void AnExplicitXLabelAngle_KeepsLabelsApart_InsideTheImage_AndAboveTheTitle(int angle)
+	{
+		// MS-27883: the strip grows for the labels at the angle the chart asks for.
+		var specification = Chart(SeriesChartType.Column, LongNames);
+		specification.XAxisTitle = "Device";
+		specification.XAxisLabelAngle = angle;
+		var document = Render(specification);
+
+		var labels = Labels(document, "xAxis");
+		var title = Title(document, "xAxis");
+		labels.Should().AllSatisfy(label => label.Angle.Should().Be(angle));
+		ShouldNotOverlap(labels);
+		ShouldBeInsideTheImage([.. labels, title]);
+		labels.Should().AllSatisfy(label => title.Top.Should().BeGreaterThanOrEqualTo(label.Bottom - 0.01, $"'Device' must be below '{label.Text}'"));
+	}
+
+	[Fact]
+	public void AnExplicitXLabelAngle_ThatFits_IsNotShortened()
+	{
+		var labels = Labels(Render(WithXAngle(Chart(SeriesChartType.Column, ["Mon", "Tue", "Wed"], 16), -45)), "xAxis");
+
+		labels.Select(label => label.Text).Should().Equal("Mon", "Tue", "Wed");
+	}
+
+	private static ChartSpecification WithXAngle(ChartSpecification specification, int angle)
+	{
+		specification.XAxisLabelAngle = angle;
+		return specification;
+	}
+
+	[Fact]
+	public void AnExplicitYLabelAngle_KeepsTheLabelsInsideTheImage()
+	{
+		// MS-27883 SHOULD: Y labels at an angle still clear the image edge.
+		var specification = Chart(SeriesChartType.Bar, LongNames);
+		specification.YAxisTitle = "Device";
+		specification.YAxisLabelAngle = -30;
+		var document = Render(specification);
+
+		var labels = Labels(document, "yAxis");
+		labels.Should().AllSatisfy(label =>
+		{
+			label.Left.Should().BeGreaterThanOrEqualTo(0, $"'{label.Text}' must not be cut off on the left");
+			label.Right.Should().BeLessThanOrEqualTo(Width);
+		});
+		labels.Select(label => label.Text).Should().Contain(text => text.EndsWith("...", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void ASingleLabelWiderThanThePlot_IsShortenedToStayInsideTheImage()
+	{
+		// MS-27893 MUST 1.
+		var specification = Chart(SeriesChartType.Column, ["A single extremely long device name that is wider than the plot area"]);
+		var labels = Labels(RenderedChart.Render(specification, 500, Height), "xAxis");
+
+		labels.Should().ContainSingle().Which.Text.Should().EndWith("...");
+		labels.Should().AllSatisfy(label =>
+		{
+			label.Left.Should().BeGreaterThanOrEqualTo(0);
+			label.Right.Should().BeLessThanOrEqualTo(500);
+		});
+	}
+
+	[Fact]
+	public void LevelLabelsThatAlreadyFit_AreUnchanged()
+	{
+		var labels = Labels(Render(Chart(SeriesChartType.Column, Days, 16)), "xAxis");
+
+		labels.Select(label => label.Text).Should().Equal(Days);
+	}
 }

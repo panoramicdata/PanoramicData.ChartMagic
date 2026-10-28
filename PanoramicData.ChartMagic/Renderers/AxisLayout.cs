@@ -37,6 +37,9 @@ internal sealed class AxisLayout
 	/// <summary>The most of the plot's own width or height a margin may grow into.</summary>
 	private const double MaximumPlotShare = 0.5;
 
+	/// <summary>Below this a label is upright, and its length no longer limits how far left it reaches.</summary>
+	private const double MinimumCosine = 0.05;
+
 	private readonly Margins _original;
 
 	internal AxisLayout(int xLabelAngle, IReadOnlyList<string?> xLabels, IReadOnlyList<string?> yLabels, Margins original)
@@ -84,13 +87,13 @@ internal sealed class AxisLayout
 			.Select(value => (string?)AxisRenderer.YAxisLabel(chart, geometry, value))
 			.ToList();
 
-		if (!IsFittable(yAxis, labels.Count, yAxis.XPositionPercent + yAxis.WidthPercent, innerPlot.XPositionPercent))
+		if (!IsFittable(yAxis, Math.Abs(yAxis.LabelAngle) <= 90, labels.Count, yAxis.XPositionPercent + yAxis.WidthPercent, innerPlot.XPositionPercent))
 		{
 			return labels;
 		}
 
 		var stripWidth = canvas.Width * yAxis.GetCanvasWidthPercent() / 100;
-		var labelsReach = yAxis.TickLengthPixels + AxisRenderer.TickLabelGapPixels + Widest(labels, yAxis);
+		var labelsReach = yAxis.TickLengthPixels + AxisRenderer.TickLabelGapPixels + HorizontalReach(Widest(labels, yAxis), yAxis.LabelAngle, yAxis.FontSize);
 		if (!YAxisNeedsRoom(yAxis, stripWidth, labelsReach))
 		{
 			return labels;
@@ -106,11 +109,11 @@ internal sealed class AxisLayout
 			: ShortenYLabels(yAxis, labels, target, titleRoom);
 	}
 
-	/// <summary>Whether an axis's labels are this layout's to fit: drawn, level, and in a strip that meets the plot.</summary>
-	private static bool IsFittable(AxisArea axis, int labelCount, double stripEdgePercent, double plotEdgePercent)
+	/// <summary>Whether an axis's labels are this layout's to fit: drawn, at an angle it can fit, and in a strip that meets the plot.</summary>
+	private static bool IsFittable(AxisArea axis, bool angleFits, int labelCount, double stripEdgePercent, double plotEdgePercent)
 		=> axis.IsEnabled
 			&& axis.LabelsEnabled
-			&& axis.LabelAngle == 0
+			&& angleFits
 			&& labelCount > 0
 			&& Math.Abs(stripEdgePercent - plotEdgePercent) < 0.01;
 
@@ -150,7 +153,8 @@ internal sealed class AxisLayout
 	{
 		var labelRoom = stripWidth - yAxis.TickLengthPixels - AxisRenderer.TickLabelGapPixels;
 		var maximumWidth = labelRoom - titleRoom >= 3 * yAxis.FontSize ? labelRoom - titleRoom : labelRoom - EdgePaddingPixels;
-		return [.. labels.Select(label => Fit(label, maximumWidth, yAxis))];
+		var fitting = WidthWithinReach(maximumWidth, yAxis.LabelAngle, yAxis.FontSize);
+		return [.. labels.Select(label => Fit(label, fitting, yAxis))];
 	}
 
 	private static string? Fit(string? label, double maximumWidth, AxisArea axis)
@@ -164,34 +168,34 @@ internal sealed class AxisLayout
 		var values = AxisRenderer.XAxisTickValues(chart, geometry);
 		var labels = values.Select(value => (string?)AxisRenderer.XAxisLabel(chart, geometry, value)).ToList();
 
-		if (!IsFittable(xAxis, labels.Count, xAxis.YPositionPercent + xAxis.HeightPercent, innerPlot.YPositionPercent))
+		if (!IsFittable(xAxis, xAxis.LabelAngle is >= -90 and <= 0, labels.Count, xAxis.YPositionPercent + xAxis.HeightPercent, innerPlot.YPositionPercent))
 		{
 			return (xAxis.LabelAngle, labels);
 		}
 
 		var positions = values.Select(value => AxisRenderer.XAxisPixels(geometry, value)).ToList();
 		var widths = labels.Select(label => TextMeasure.Width(label!, xAxis.FontSize, xAxis.FontWeight)).ToList();
-		var turned = Overlaps(positions, widths);
-		if (turned)
+		var angle = xAxis.LabelAngle != 0 ? xAxis.LabelAngle : Overlaps(positions, widths) ? RotatedLabelAngle : 0;
+		if (angle != 0)
 		{
-			Thin(labels, positions, xAxis.FontSize + 1, Diagonal);
+			Thin(labels, positions, xAxis.FontSize + 1, Sine(angle));
 		}
 
 		var labelTop = xAxis.TickLengthPixels + AxisRenderer.TickLabelGapPixels;
 		var titleRoom = TitleRoom(xAxis, xAxis.FontSize + LabelSpacingPixels);
-		var needed = labelTop + LabelsDepth(labels, widths, xAxis.FontSize, turned) + titleRoom;
+		var needed = labelTop + LabelsDepth(labels, widths, xAxis.FontSize, angle) + titleRoom;
 		var stripHeight = canvas.Height * xAxis.GetCanvasHeightPercent() / 100;
 		var chartAreaHeight = canvas.Height * chart.ChartArea.GetCanvasHeightPercent() / 100;
 		var target = Target(stripHeight, needed, chartAreaHeight, canvas.Height * innerPlot.GetCanvasHeightPercent() / 100);
 		GrowBottomMargin(chart, (target - stripHeight) / chartAreaHeight * 100);
 
 		// Numbers are never shortened: "2000000..." reads as another number.
-		if (turned && IsCategoryAxis(geometry))
+		if (IsCategoryAxis(geometry))
 		{
-			ShortenTurnedLabels(xAxis, labels, positions, canvas.Width * innerPlot.GetCanvasXLocationPercent() / 100, target - labelTop - titleRoom);
+			ShortenXLabels(xAxis, labels, positions, (canvas.Width * innerPlot.GetCanvasXLocationPercent() / 100, canvas.Width), angle, target - labelTop - titleRoom);
 		}
 
-		return (turned ? RotatedLabelAngle : 0, labels);
+		return (angle, labels);
 	}
 
 	/// <summary>Whether the X axis shows categories, which may be shortened, rather than numbers.</summary>
@@ -203,9 +207,9 @@ internal sealed class AxisLayout
 			.Any(i => Math.Abs(positions[i] - positions[i - 1]) < ((widths[i] + widths[i - 1]) / 2) + LabelSpacingPixels);
 
 	/// <summary>How far below the top of the labels the deepest one reaches.</summary>
-	private static double LabelsDepth(List<string?> labels, List<double> widths, double fontSize, bool turned)
-		=> turned
-			? labels.Select((label, i) => label is null ? 0 : RotatedDepth(widths[i], fontSize)).Max()
+	private static double LabelsDepth(List<string?> labels, List<double> widths, double fontSize, int angle)
+		=> angle != 0
+			? labels.Select((label, i) => label is null ? 0 : RotatedDepth(widths[i], fontSize, angle)).Max()
 			: fontSize;
 
 	private static void GrowBottomMargin(Chart chart, double growthPercent)
@@ -221,19 +225,30 @@ internal sealed class AxisLayout
 	}
 
 	/// <summary>
-	/// Turned labels shortened to the room they have: a turned label hangs down and to the left of
-	/// its tick, so it is limited by the depth of the strip and by the space left of its tick.
+	/// X labels shortened to the room they have. A level label is centred on its tick, so it is
+	/// limited by the nearer image edge; a turned one hangs down and to the left of its tick, so it
+	/// is limited by the depth of the strip and by the space left of its tick. The plot edges are the
+	/// image position of the plot's left edge, and of the image's right edge.
 	/// </summary>
-	private static void ShortenTurnedLabels(AxisArea xAxis, List<string?> labels, List<double> positions, double plotLeft, double depth)
+	private static void ShortenXLabels(AxisArea xAxis, List<string?> labels, List<double> positions, (double PlotLeft, double ImageRight) plotEdges, int angle, double depth)
 	{
 		var fontSize = xAxis.FontSize;
-		var deepest = (depth - (fontSize * (0.8 + (0.2 * Diagonal)))) / Diagonal;
+		var sine = Sine(angle);
+		var cosine = Math.Abs(Math.Cos(angle * Math.PI / 180));
+		var deepest = angle == 0 ? double.MaxValue : (depth - (fontSize * (0.8 + (0.2 * sine)))) / sine;
 		for (var i = 0; i < labels.Count; i++)
 		{
-			var widest = Math.Min(deepest, ((plotLeft + positions[i] - EdgePaddingPixels) / Diagonal) - (0.8 * fontSize));
+			var tick = plotEdges.PlotLeft + positions[i];
+			var widest = angle == 0
+				? 2 * Math.Min(tick - EdgePaddingPixels, plotEdges.ImageRight - tick - EdgePaddingPixels)
+				: Math.Min(deepest, WidthLeftOfTick(tick - EdgePaddingPixels, cosine, sine, fontSize));
 			labels[i] = Fit(labels[i], widest, xAxis);
 		}
 	}
+
+	/// <summary>The longest a turned label can be and stay right of the image edge.</summary>
+	private static double WidthLeftOfTick(double roomLeft, double cosine, double sine, double fontSize)
+		=> cosine < MinimumCosine ? double.MaxValue : (roomLeft - (0.8 * fontSize * sine)) / cosine;
 
 	/// <summary>
 	/// Every Nth Y label, where the labels are closer together than a line of text.
@@ -241,7 +256,7 @@ internal sealed class AxisLayout
 	private static List<string?> ThinYAxis(Chart chart, Canvas canvas, List<string?> labels)
 	{
 		var yAxis = chart.ChartArea.YAxis;
-		if (!yAxis.IsEnabled || !yAxis.LabelsEnabled || yAxis.LabelAngle != 0 || labels.Count < 2)
+		if (!yAxis.IsEnabled || !yAxis.LabelsEnabled || Math.Abs(yAxis.LabelAngle) > 90 || labels.Count < 2)
 		{
 			return labels;
 		}
@@ -250,7 +265,7 @@ internal sealed class AxisLayout
 		var positions = AxisRenderer.YAxisTickValues(chart, geometry)
 			.Select(value => geometry.IsHorizontalPlot ? geometry.CategoryToPixels(value) : geometry.YToPixels(value))
 			.ToList();
-		Thin(labels, positions, yAxis.FontSize + 1, 1);
+		Thin(labels, positions, yAxis.FontSize + 1, Math.Max(Math.Abs(Math.Cos(yAxis.LabelAngle * Math.PI / 180)), MinimumCosine));
 		return labels;
 	}
 
@@ -286,8 +301,22 @@ internal sealed class AxisLayout
 	}
 
 	/// <summary>How far below its top a label drawn at -45 degrees reaches.</summary>
-	private static double RotatedDepth(double width, double fontSize)
-		=> (fontSize * (0.8 + (0.2 * Diagonal))) + (width * Diagonal);
+	private static double RotatedDepth(double width, double fontSize, int angle)
+		=> (fontSize * (0.8 + (0.2 * Sine(angle)))) + (width * Sine(angle));
+
+	/// <summary>The sine of a label's angle, taken as positive; exactly the diagonal at 45 degrees.</summary>
+	private static double Sine(int angle) => Math.Abs(angle) == 45 ? Diagonal : Math.Abs(Math.Sin(angle * Math.PI / 180));
+
+	/// <summary>How far left of its anchor a label of this width reaches when drawn at an angle, centred on its line.</summary>
+	private static double HorizontalReach(double width, int angle, double fontSize)
+		=> (width * Math.Abs(Math.Cos(angle * Math.PI / 180))) + (0.5 * fontSize * Sine(angle));
+
+	/// <summary>The longest label whose <see cref="HorizontalReach"/> is within a room.</summary>
+	private static double WidthWithinReach(double room, int angle, double fontSize)
+	{
+		var cosine = Math.Abs(Math.Cos(angle * Math.PI / 180));
+		return cosine < MinimumCosine ? double.MaxValue : (room - (0.5 * fontSize * Sine(angle))) / cosine;
+	}
 
 	private static double Widest(IEnumerable<string?> labels, AxisArea axis)
 		=> labels.Max(label => label is null ? 0 : TextMeasure.Width(label, axis.FontSize, axis.FontWeight));
