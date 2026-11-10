@@ -100,14 +100,21 @@ internal sealed class AxisLayout
 		}
 
 		var titleRoom = TitleRoom(yAxis, yAxis.FontSize + AxisRenderer.YAxisTitleClearancePixels);
-		var chartAreaWidth = canvas.Width * chart.ChartArea.GetCanvasWidthPercent() / 100;
-		var target = Target(stripWidth, labelsReach + titleRoom, chartAreaWidth, canvas.Width * innerPlot.GetCanvasWidthPercent() / 100);
-		GrowLeftMargin(chart, (target - stripWidth) / chartAreaWidth * 100);
-
-		return labelsReach + titleRoom <= target || !geometry.IsHorizontalPlot
+		var target = GrowYAxisMargin(chart, canvas, innerPlot.GetCanvasWidthPercent(), stripWidth, labelsReach + titleRoom);
+		return YAxisStillFits(labelsReach, titleRoom, target) || !geometry.IsHorizontalPlot
 			? labels
 			: ShortenYLabels(yAxis, labels, target, titleRoom);
 	}
+
+	private static double GrowYAxisMargin(Chart chart, Canvas canvas, double innerPlotPercent, double stripWidth, double needed)
+	{
+		var chartAreaWidth = canvas.Width * chart.ChartArea.GetCanvasWidthPercent() / 100;
+		var target = Target(stripWidth, needed, chartAreaWidth, canvas.Width * innerPlotPercent / 100);
+		GrowLeftMargin(chart, (target - stripWidth) / chartAreaWidth * 100);
+		return target;
+	}
+
+	private static bool YAxisStillFits(double labelsReach, double titleRoom, double target) => labelsReach + titleRoom <= target;
 
 	/// <summary>Whether an axis's labels are this layout's to fit: drawn, at an angle it can fit, and in a strip that meets the plot.</summary>
 	private static bool IsFittable(AxisArea axis, bool angleFits, int labelCount, double stripEdgePercent, double plotEdgePercent)
@@ -184,10 +191,7 @@ internal sealed class AxisLayout
 		var labelTop = xAxis.TickLengthPixels + AxisRenderer.TickLabelGapPixels;
 		var titleRoom = TitleRoom(xAxis, xAxis.FontSize + LabelSpacingPixels);
 		var needed = labelTop + LabelsDepth(labels, widths, xAxis.FontSize, angle) + titleRoom;
-		var stripHeight = canvas.Height * xAxis.GetCanvasHeightPercent() / 100;
-		var chartAreaHeight = canvas.Height * chart.ChartArea.GetCanvasHeightPercent() / 100;
-		var target = Target(stripHeight, needed, chartAreaHeight, canvas.Height * innerPlot.GetCanvasHeightPercent() / 100);
-		GrowBottomMargin(chart, (target - stripHeight) / chartAreaHeight * 100);
+		var target = GrowXAxisMargin(chart, canvas, innerPlot.GetCanvasHeightPercent(), xAxis, needed);
 
 		// Numbers are never shortened: "2000000..." reads as another number.
 		if (IsCategoryAxis(geometry))
@@ -196,6 +200,15 @@ internal sealed class AxisLayout
 		}
 
 		return (angle, labels);
+	}
+
+	private static double GrowXAxisMargin(Chart chart, Canvas canvas, double innerPlotPercent, AxisArea xAxis, double needed)
+	{
+		var stripHeight = canvas.Height * xAxis.GetCanvasHeightPercent() / 100;
+		var chartAreaHeight = canvas.Height * chart.ChartArea.GetCanvasHeightPercent() / 100;
+		var target = Target(stripHeight, needed, chartAreaHeight, canvas.Height * innerPlotPercent / 100);
+		GrowBottomMargin(chart, (target - stripHeight) / chartAreaHeight * 100);
+		return target;
 	}
 
 	/// <summary>Whether the X axis shows categories, which may be shortened, rather than numbers.</summary>
