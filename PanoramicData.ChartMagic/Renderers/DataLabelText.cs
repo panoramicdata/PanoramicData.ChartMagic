@@ -54,22 +54,46 @@ internal static partial class DataLabelText
 
 		culture ??= CultureInfo.InvariantCulture;
 
-		return KeywordPattern().Replace(text, match =>
-		{
-			var format = match.Groups["format"] is { Success: true, Length: > 0 } group ? group.Value : null;
-			return match.Groups["keyword"].Value.ToUpperInvariant() switch
-			{
-				"VALX" => point.XValueString ?? FormatNumber(point.XValue, format, culture),
-				"VALY" or "VAL" => FormatNumber(value, format, culture),
-				// The Microsoft chart control formats the share as a fraction, so P0 gives "33%".
-				"PERCENT" => (format is null ? null : Formatted(percentage / 100, format, culture))
-					?? percentage.ToString("0.00", culture) + "%",
-				"TOTAL" => FormatNumber(total, format, culture),
-				"LEGENDTEXT" => (point.LegendText ?? string.Empty) + Braced(format),
-				_ => (seriesName ?? string.Empty) + Braced(format)
-			};
-		});
+		return KeywordPattern().Replace(text, match => SubstituteKeyword(match, point, value, seriesName, percentage, total, culture));
 	}
+
+	/// <summary>
+	/// The label for one keyword occurrence, or its unrecognised keyword left as written.
+	/// </summary>
+	/// <remarks>
+	/// An unrecognised keyword is left in place rather than blanked, so it shows on the chart as
+	/// itself instead of vanishing. A format the value cannot take falls back to the unformatted
+	/// value. A format after a text keyword is not a number format, so it is left as written.
+	/// </remarks>
+	private static string SubstituteKeyword(
+		Match match,
+		ChartPoint point,
+		double value,
+		string? seriesName,
+		double percentage,
+		double total,
+		CultureInfo culture)
+	{
+		var format = match.Groups["format"] is { Success: true, Length: > 0 } group ? group.Value : null;
+		return match.Groups["keyword"].Value.ToUpperInvariant() switch
+		{
+			"VALX" => point.XValueString ?? FormatNumber(point.XValue, format, culture),
+			"VALY" or "VAL" => FormatNumber(value, format, culture),
+			// The Microsoft chart control formats the share as a fraction, so P0 gives "33%".
+			"PERCENT" => SubstitutePercent(format, percentage, culture),
+			"TOTAL" => FormatNumber(total, format, culture),
+			"LEGENDTEXT" => (point.LegendText ?? string.Empty) + Braced(format),
+			_ => (seriesName ?? string.Empty) + Braced(format)
+		};
+	}
+
+	/// <summary>
+	/// The share of the series total as the label shows it: a format applied to the fraction, or a
+	/// percentage with two decimals when there is no format or the format cannot take it.
+	/// </summary>
+	private static string SubstitutePercent(string? format, double percentage, CultureInfo culture)
+		=> (format is null ? null : Formatted(percentage / 100, format, culture))
+			?? percentage.ToString("0.00", culture) + "%";
 
 	/// <summary>
 	/// A number as a label shows it: up to two decimal places, and none when it is whole.
