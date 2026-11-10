@@ -29,8 +29,7 @@ public class DemoSampleTests
 		var sample = FunnelSample();
 		var stages = sample.Specification.SeriesList.Single().Points.Count;
 
-		var document = XDocument.Parse(SampleCharts.ToSvg(sample.Specification, dark ? ChartTheme.Dark : ChartTheme.Light));
-		var funnel = document.Descendants(Svg + "g").Single(group => (string?)group.Attribute("id") == "funnel");
+		var funnel = RenderFunnel(sample.Specification, dark);
 
 		stages.Should().BeGreaterThan(2, "a funnel of two stages does not show it narrowing");
 		funnel.Elements(Svg + "path").Where(path => ((string?)path.Attribute("id"))?.StartsWith("funnelSegment", StringComparison.Ordinal) == true)
@@ -50,12 +49,9 @@ public class DemoSampleTests
 		var theme = dark ? ChartTheme.Dark : ChartTheme.Light;
 		var expected = $"#{theme.AxisLabel.R:X2}{theme.AxisLabel.G:X2}{theme.AxisLabel.B:X2}";
 
-		var document = XDocument.Parse(SampleCharts.ToSvg(FunnelSample().Specification, theme));
+		var funnel = RenderFunnel(FunnelSample().Specification, dark);
 
-		document.Descendants(Svg + "text")
-			.Where(text => ((string?)text.Attribute("id"))?.StartsWith("funnelLabel", StringComparison.Ordinal) == true)
-			.Select(text => ((string?)text.Attribute("fill"))?.ToUpperInvariant())
-			.Should().NotBeEmpty().And.AllBe(expected);
+		ColouredFunnelLabels(funnel).Should().NotBeEmpty().And.AllBe(expected);
 	}
 
 	[Fact]
@@ -64,11 +60,19 @@ public class DemoSampleTests
 		var specification = SpecificationEditor.Clone(FunnelSample().Specification);
 		specification.SeriesList[0].FontColor = System.Drawing.Color.Red;
 
-		var document = XDocument.Parse(SampleCharts.ToSvg(specification, ChartTheme.Dark));
+		var funnel = RenderFunnel(specification, dark: true);
 
-		document.Descendants(Svg + "text")
-			.Where(text => ((string?)text.Attribute("id"))?.StartsWith("funnelLabel", StringComparison.Ordinal) == true)
-			.Select(text => ((string?)text.Attribute("fill"))?.ToUpperInvariant())
-			.Should().NotBeEmpty().And.AllBe("#FF0000", "the theme fills in defaults only, as it does for every other colour");
+		ColouredFunnelLabels(funnel).Should().NotBeEmpty().And.AllBe("#FF0000", "the theme fills in defaults only, as it does for every other colour");
 	}
+
+	private static XElement RenderFunnel(ChartSpecification specification, bool dark)
+	{
+		var document = XDocument.Parse(SampleCharts.ToSvg(specification, dark ? ChartTheme.Dark : ChartTheme.Light));
+		return document.Descendants(Svg + "g").Single(group => (string?)group.Attribute("id") == "funnel");
+	}
+
+	private static IEnumerable<string> ColouredFunnelLabels(XElement funnel)
+		=> funnel.Descendants(Svg + "text")
+			.Where(text => ((string?)text.Attribute("id"))?.StartsWith("funnelLabel", StringComparison.Ordinal) == true)
+			.Select(text => ((string?)text.Attribute("fill"))?.ToUpperInvariant())!;
 }
