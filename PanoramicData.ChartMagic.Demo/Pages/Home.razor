@@ -359,7 +359,17 @@
 
 		// The mode was already applied to the document by the boot script; this only lights the
 		// right button.
-		var stored = await JS.InvokeAsync<string>("chartMagicDemo.getTheme");
+		string stored;
+		try
+		{
+			stored = await JS.InvokeAsync<string>("chartMagicDemo.getTheme");
+		}
+		catch (JSDisconnectedException)
+		{
+			// The circuit is gone, so there is nothing left to do.
+			return;
+		}
+
 		if (stored != _mode)
 		{
 			_mode = stored;
@@ -381,7 +391,14 @@
 	private async Task SetModeAsync(string mode)
 	{
 		_mode = mode;
-		await JS.InvokeVoidAsync("chartMagicDemo.setTheme", mode);
+		try
+		{
+			await JS.InvokeVoidAsync("chartMagicDemo.setTheme", mode);
+		}
+		catch (JSDisconnectedException)
+		{
+			// The circuit is gone, so there is nothing left to do.
+		}
 	}
 
 	/// <summary>

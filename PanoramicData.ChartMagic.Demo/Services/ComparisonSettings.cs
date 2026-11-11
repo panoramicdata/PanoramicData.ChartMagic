@@ -51,29 +51,37 @@ public sealed class ComparisonSettings(IJSRuntime js)
 	/// </summary>
 	public async Task<ComparisonConfiguration> LoadAsync()
 	{
-		IsLocal = await js.InvokeAsync<bool>("chartMagicDemo.isLocalHost");
-		if (!IsLocal)
+		try
 		{
+			IsLocal = await js.InvokeAsync<bool>("chartMagicDemo.isLocalHost");
+			if (!IsLocal)
+			{
+				return new ComparisonConfiguration(null, null, false);
+			}
+
+			var server = await js.InvokeAsync<string?>("chartMagicDemo.takeQueryParameter", "docmagic");
+			var apiKey = await js.InvokeAsync<string?>("chartMagicDemo.takeQueryParameter", "key");
+			var relay = await js.InvokeAsync<string?>("chartMagicDemo.takeQueryParameter", "relay");
+
+			if (server is { Length: > 0 })
+			{
+				await js.InvokeVoidAsync("chartMagicDemo.store", ServerKey, server);
+			}
+
+			if (apiKey is { Length: > 0 })
+			{
+				await js.InvokeVoidAsync("chartMagicDemo.store", ApiKeyKey, apiKey);
+			}
+
+			if (relay is { Length: > 0 })
+			{
+				await js.InvokeVoidAsync("chartMagicDemo.store", RelayKey, relay);
+			}
+		}
+		catch (JSDisconnectedException)
+		{
+			// The circuit is gone, so nothing can be read or stored.
 			return new ComparisonConfiguration(null, null, false);
-		}
-
-		var server = await js.InvokeAsync<string?>("chartMagicDemo.takeQueryParameter", "docmagic");
-		var apiKey = await js.InvokeAsync<string?>("chartMagicDemo.takeQueryParameter", "key");
-		var relay = await js.InvokeAsync<string?>("chartMagicDemo.takeQueryParameter", "relay");
-
-		if (server is { Length: > 0 })
-		{
-			await js.InvokeVoidAsync("chartMagicDemo.store", ServerKey, server);
-		}
-
-		if (apiKey is { Length: > 0 })
-		{
-			await js.InvokeVoidAsync("chartMagicDemo.store", ApiKeyKey, apiKey);
-		}
-
-		if (relay is { Length: > 0 })
-		{
-			await js.InvokeVoidAsync("chartMagicDemo.store", RelayKey, relay);
 		}
 
 		return await ReadAsync();
@@ -89,19 +97,42 @@ public sealed class ComparisonSettings(IJSRuntime js)
 			return new ComparisonConfiguration(null, null, false);
 		}
 
-		return new ComparisonConfiguration(
-			await js.InvokeAsync<string?>("chartMagicDemo.read", RelayKey) is { Length: > 0 } relay
-				? relay
-				: DefaultRelayUrl,
-			await js.InvokeAsync<string?>("chartMagicDemo.read", ServerKey),
-			await js.InvokeAsync<string?>("chartMagicDemo.read", ApiKeyKey) is { Length: > 0 });
+		try
+		{
+			return new ComparisonConfiguration(
+				await js.InvokeAsync<string?>("chartMagicDemo.read", RelayKey) is { Length: > 0 } relay
+					? relay
+					: DefaultRelayUrl,
+				await js.InvokeAsync<string?>("chartMagicDemo.read", ServerKey),
+				await js.InvokeAsync<string?>("chartMagicDemo.read", ApiKeyKey) is { Length: > 0 });
+		}
+		catch (JSDisconnectedException)
+		{
+			// The circuit is gone, so nothing is readable.
+			return new ComparisonConfiguration(null, null, false);
+		}
 	}
 
 	/// <summary>
 	/// The API key, for the one caller that has to send it.
 	/// </summary>
 	public async Task<string?> ReadApiKeyAsync()
-		=> IsLocal ? await js.InvokeAsync<string?>("chartMagicDemo.read", ApiKeyKey) : null;
+	{
+		if (!IsLocal)
+		{
+			return null;
+		}
+
+		try
+		{
+			return await js.InvokeAsync<string?>("chartMagicDemo.read", ApiKeyKey);
+		}
+		catch (JSDisconnectedException)
+		{
+			// The circuit is gone, so there is no key to read.
+			return null;
+		}
+	}
 
 	/// <summary>
 	/// Forgets everything, so a key need not outlive the session it was needed for.
@@ -110,7 +141,15 @@ public sealed class ComparisonSettings(IJSRuntime js)
 	{
 		foreach (var key in new[] { RelayKey, ServerKey, ApiKeyKey })
 		{
-			await js.InvokeVoidAsync("chartMagicDemo.forget", key);
+			try
+			{
+				await js.InvokeVoidAsync("chartMagicDemo.forget", key);
+			}
+			catch (JSDisconnectedException)
+			{
+				// The circuit is gone, so there is nothing left to do.
+				return;
+			}
 		}
 	}
 }

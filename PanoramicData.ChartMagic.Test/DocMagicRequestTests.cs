@@ -40,7 +40,7 @@ public class DocMagicRequestTests
 	};
 
 	private static JsonElement Build(ChartSpecification specification)
-		=> JsonDocument.Parse(DocMagicRequest.Build(specification, 720, 380)).RootElement;
+		=> JsonElement.Parse(DocMagicRequest.Build(specification, 720, 380));
 
 	/// <summary>
 	/// Enumerations go as the endpoint's numbers, not as names and not as this library's numbers.
