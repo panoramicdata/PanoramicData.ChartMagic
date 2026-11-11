@@ -39,7 +39,7 @@ internal sealed class LegendRenderer(SvgCanvas canvas)
 	/// <summary>
 	/// An entry laid out: where its swatch goes, and the lines of text beside it.
 	/// </summary>
-	private sealed record Placement(Entry Entry, double X, double CentreY, IReadOnlyList<string> Lines);
+	private sealed record Placement(Entry Entry, double X, double CentreY, IReadOnlyList<string> LabelLines);
 
 	/// <summary>
 	/// Draws the legend: one swatch and label per series, inside the legend box.
@@ -373,15 +373,15 @@ internal sealed class LegendRenderer(SvgCanvas canvas)
 
 		var lineHeight = metrics.FontSize * LineHeightFraction;
 		var textX = placement.X + metrics.SwatchWidth + (metrics.Padding / 2);
-		for (var line = 0; line < placement.Lines.Count; line++)
+		for (var line = 0; line < placement.LabelLines.Count; line++)
 		{
-			var y = placement.CentreY + ((line - ((placement.Lines.Count - 1) / 2.0)) * lineHeight);
+			var y = placement.CentreY + ((line - ((placement.LabelLines.Count - 1) / 2.0)) * lineHeight);
 			legendNode.AppendChild(
 				_canvas.Text(
 					line == 0 ? placement.Entry.Id : FormattableString.Invariant($"{placement.Entry.Id}{line}"),
 					textX,
 					y,
-					placement.Lines[line],
+					placement.LabelLines[line],
 					HorizontalAlignment.Left,
 					VerticalAlignment.Middle,
 					labelStyle));

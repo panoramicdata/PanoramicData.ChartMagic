@@ -63,7 +63,7 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 		string id,
 		double x,
 		double y,
-		string text,
+		string textValue,
 		HorizontalAlignment horizontalAlignment,
 		VerticalAlignment verticalAlignment,
 		TextStyle style,
@@ -76,7 +76,7 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 		textNode.SetAttribute("x", roundedX.ToString(CultureInfo.InvariantCulture));
 		textNode.SetAttribute("y", roundedY.ToString(CultureInfo.InvariantCulture));
 		textNode.SetAttribute("id", id);
-		textNode.InnerText = text;
+		textNode.InnerText = textValue;
 		textNode.SetAttribute("text-anchor", TextAnchor(horizontalAlignment));
 
 		textNode.SetAttribute("font-weight", style.FontWeight.ToString().ToLowerInvariant());

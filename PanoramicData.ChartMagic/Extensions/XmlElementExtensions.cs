@@ -31,46 +31,66 @@ internal static class XmlElementExtensions
 
 	private static void AddStrokeStyle(List<string> style, ChartNamedElement element, bool applyStroke)
 	{
-		if (applyStroke && element.StrokeColor != Colors.Transparent && element.StrokeWidth != 0)
+		if (applyStroke && HasVisibleStroke(element))
 		{
 			style.Add($"stroke:{element.StrokeColor.ToHex()}");
-			if (element.StrokeColor.A != 255)
-			{
-				style.Add($"stroke-opacity:{(element.StrokeColor.A / 255f).ToString("F2", CultureInfo.InvariantCulture)}");
-			}
-
-			var dashArray = SvgCanvas.DashArrayFor(element.StrokeStyle, element.StrokeWidth);
-			if (dashArray is not null)
-			{
-				style.Add($"stroke-dasharray:{dashArray}");
-			}
-
-			// Round caps grow every dash by the line width, which closes the gaps.
-			var lineCap = dashArray is not null ? "butt" : element.StrokeLineCapStyle switch
-			{
-				StrokeLineCapStyle.Square => "square",
-				StrokeLineCapStyle.Round => "round",
-				_ => null
-			};
-			if (lineCap is not null)
-			{
-				style.Add($"stroke-linecap:{lineCap}");
-			}
-
-			var lineJoin = element.StrokeLineJoinStyle switch
-			{
-				StrokeLineJoinStyle.Arcs => "arcs",
-				StrokeLineJoinStyle.Bevel => "bevel",
-				StrokeLineJoinStyle.MiterClip => "miter-clip",
-				StrokeLineJoinStyle.Round => "round",
-				_ => null
-			};
-			if (lineJoin is not null)
-			{
-				style.Add($"stroke-linejoin:{lineJoin}");
-			}
-
+			AddStrokeOpacity(style, element);
+			AddStrokeDashArray(style, element);
+			AddStrokeLineCap(style, element);
+			AddStrokeLineJoin(style, element);
 			style.Add($"stroke-width:{element.StrokeWidth.ToString(CultureInfo.InvariantCulture)}");
+		}
+	}
+
+	private static bool HasVisibleStroke(ChartNamedElement element)
+		=> element.StrokeColor != Colors.Transparent && element.StrokeWidth != 0;
+
+	private static void AddStrokeOpacity(List<string> style, ChartNamedElement element)
+	{
+		if (element.StrokeColor.A != 255)
+		{
+			style.Add($"stroke-opacity:{(element.StrokeColor.A / 255f).ToString("F2", CultureInfo.InvariantCulture)}");
+		}
+	}
+
+	private static void AddStrokeDashArray(List<string> style, ChartNamedElement element)
+	{
+		var dashArray = SvgCanvas.DashArrayFor(element.StrokeStyle, element.StrokeWidth);
+		if (dashArray is not null)
+		{
+			style.Add($"stroke-dasharray:{dashArray}");
+		}
+	}
+
+	private static void AddStrokeLineCap(List<string> style, ChartNamedElement element)
+	{
+		// Round caps grow every dash by the line width, which closes the gaps.
+		var hasDashArray = SvgCanvas.DashArrayFor(element.StrokeStyle, element.StrokeWidth) is not null;
+		var lineCap = hasDashArray ? "butt" : element.StrokeLineCapStyle switch
+		{
+			StrokeLineCapStyle.Square => "square",
+			StrokeLineCapStyle.Round => "round",
+			_ => null
+		};
+		if (lineCap is not null)
+		{
+			style.Add($"stroke-linecap:{lineCap}");
+		}
+	}
+
+	private static void AddStrokeLineJoin(List<string> style, ChartNamedElement element)
+	{
+		var lineJoin = element.StrokeLineJoinStyle switch
+		{
+			StrokeLineJoinStyle.Arcs => "arcs",
+			StrokeLineJoinStyle.Bevel => "bevel",
+			StrokeLineJoinStyle.MiterClip => "miter-clip",
+			StrokeLineJoinStyle.Round => "round",
+			_ => null
+		};
+		if (lineJoin is not null)
+		{
+			style.Add($"stroke-linejoin:{lineJoin}");
 		}
 	}
 }
