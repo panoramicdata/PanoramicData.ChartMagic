@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace PanoramicData.ChartMagic.Models;
 
-public class SeriesSpecification : SeriesMarkerSpecification
+public class SeriesSpecification
 {
 	[JsonPropertyOrder(0)]
 	public List<ChartPoint> Points { get; set; } = [];
@@ -47,6 +47,21 @@ public class SeriesSpecification : SeriesMarkerSpecification
 
 	[JsonPropertyOrder(12)]
 	public ChartDashStyle StrokeStyle { get; set; } = ChartDashStyle.Solid;
+
+	[JsonPropertyOrder(13)]
+	public MarkerStyle MarkerStyle { get; set; } = MarkerStyle.None;
+
+	[JsonPropertyOrder(14)]
+	public Color? MarkerStrokeColor { get; set; }
+
+	[JsonPropertyOrder(15)]
+	public Color? MarkerFillColor { get; set; }
+
+	[JsonPropertyOrder(16)]
+	public double? MarkerStrokeWidth { get; set; }
+
+	[JsonPropertyOrder(17)]
+	public double? MarkerSize { get; set; }
 
 	/// <summary>
 	/// Overrides <see cref="Series.DoughnutRadiusPercent"/> for this series. Null takes the

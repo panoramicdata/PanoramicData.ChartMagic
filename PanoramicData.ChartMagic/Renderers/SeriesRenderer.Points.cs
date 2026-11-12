@@ -72,13 +72,7 @@ internal sealed partial class SeriesRenderer
 
 			if (chartPoint.YValue is { } pointValue)
 			{
-				labelAnchors.Add(new DataLabelAnchor(
-					chartPoint,
-					pointValue,
-					xPosition,
-					yPosition - labelLift,
-					HorizontalAlignment.Center,
-					VerticalAlignment.Bottom));
+				labelAnchors.Add(PointLabelAnchor(chartPoint, pointValue, xPosition, yPosition - labelLift));
 			}
 		}
 
@@ -91,6 +85,9 @@ internal sealed partial class SeriesRenderer
 			markerNodes,
 			labelAnchors);
 	}
+
+	private static DataLabelAnchor PointLabelAnchor(ChartPoint chartPoint, double value, double x, double y)
+		=> new(chartPoint, value, x, y, HorizontalAlignment.Center, VerticalAlignment.Bottom);
 
 	private static double XPixels(PlotGeometry geometry, ChartPoint chartPoint)
 		=> geometry.IsCategorical
