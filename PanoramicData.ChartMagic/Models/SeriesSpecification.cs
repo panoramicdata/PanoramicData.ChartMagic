@@ -5,14 +5,28 @@ namespace PanoramicData.ChartMagic.Models;
 
 public class SeriesSpecification
 {
+	private readonly SeriesSettings _shared = new();
+
 	[JsonPropertyOrder(0)]
-	public List<ChartPoint> Points { get; set; } = [];
+	public List<ChartPoint> Points
+	{
+		get { return _shared.Points; }
+		set { _shared.Points = value; }
+	}
 
 	[JsonPropertyOrder(1)]
-	public SeriesChartType ChartType { get; set; }
+	public SeriesChartType ChartType
+	{
+		get { return _shared.ChartType; }
+		set { _shared.ChartType = value; }
+	}
 
 	[JsonPropertyOrder(2)]
-	public bool IsXValueIndexed { get; set; }
+	public bool IsXValueIndexed
+	{
+		get { return _shared.IsXValueIndexed; }
+		set { _shared.IsXValueIndexed = value; }
+	}
 
 	[JsonPropertyOrder(3)]
 	public Color FillColor { get; set; } = Colors.Transparent;
@@ -30,10 +44,18 @@ public class SeriesSpecification
 	public StrokeLineJoinStyle StrokeLineJoinStyle { get; set; } = StrokeLineJoinStyle.Round;
 
 	[JsonPropertyOrder(8)]
-	public string? LabelText { get; set; }
+	public string? LabelText
+	{
+		get { return _shared.LabelText; }
+		set { _shared.LabelText = value; }
+	}
 
 	[JsonPropertyOrder(9)]
-	public string? LegendText { get; set; }
+	public string? LegendText
+	{
+		get { return _shared.LegendText; }
+		set { _shared.LegendText = value; }
+	}
 
 	[JsonPropertyOrder(10)]
 	public double FontSize { get; set; } = 20;
@@ -49,29 +71,57 @@ public class SeriesSpecification
 	public ChartDashStyle StrokeStyle { get; set; } = ChartDashStyle.Solid;
 
 	[JsonPropertyOrder(13)]
-	public MarkerStyle MarkerStyle { get; set; } = MarkerStyle.None;
+	public MarkerStyle MarkerStyle
+	{
+		get { return _shared.MarkerStyle; }
+		set { _shared.MarkerStyle = value; }
+	}
 
 	[JsonPropertyOrder(14)]
-	public Color? MarkerStrokeColor { get; set; }
+	public Color? MarkerStrokeColor
+	{
+		get { return _shared.MarkerStrokeColor; }
+		set { _shared.MarkerStrokeColor = value; }
+	}
 
 	[JsonPropertyOrder(15)]
-	public Color? MarkerFillColor { get; set; }
+	public Color? MarkerFillColor
+	{
+		get { return _shared.MarkerFillColor; }
+		set { _shared.MarkerFillColor = value; }
+	}
 
 	[JsonPropertyOrder(16)]
-	public double? MarkerStrokeWidth { get; set; }
+	public double? MarkerStrokeWidth
+	{
+		get { return _shared.MarkerStrokeWidth; }
+		set { _shared.MarkerStrokeWidth = value; }
+	}
 
 	[JsonPropertyOrder(17)]
-	public double? MarkerSize { get; set; }
+	public double? MarkerSize
+	{
+		get { return _shared.MarkerSize; }
+		set { _shared.MarkerSize = value; }
+	}
 
 	/// <summary>
 	/// Overrides <see cref="Series.DoughnutRadiusPercent"/> for this series. Null takes the
 	/// chart-wide <see cref="ChartSpecification.DoughnutRadius"/> instead.
 	/// </summary>
 	[JsonPropertyOrder(18)]
-	public double? DoughnutRadiusPercent { get; set; }
+	public double? DoughnutRadiusPercent
+	{
+		get { return _shared.DoughnutRadiusPercent; }
+		set { _shared.DoughnutRadiusPercent = value; }
+	}
 
 	[JsonPropertyOrder(19)]
-	public PieLabelStyle PieLabelStyle { get; set; }
+	public PieLabelStyle PieLabelStyle
+	{
+		get { return _shared.PieLabelStyle; }
+		set { _shared.PieLabelStyle = value; }
+	}
 
 	[JsonPropertyOrder(20)]
 	public Color? PieLineColor { get; set; }
@@ -83,8 +133,16 @@ public class SeriesSpecification
 	public double? PieCollectedThresholdPercent { get; set; }
 
 	[JsonPropertyOrder(23)]
-	public Color? PieCollectedColor { get; set; }
+	public Color? PieCollectedColor
+	{
+		get { return _shared.PieCollectedColor; }
+		set { _shared.PieCollectedColor = value; }
+	}
 
 	[JsonPropertyOrder(24)]
-	public string? PieCollectedLabel { get; set; }
+	public string? PieCollectedLabel
+	{
+		get { return _shared.PieCollectedLabel; }
+		set { _shared.PieCollectedLabel = value; }
+	}
 }

@@ -12,7 +12,7 @@ public class FormatTests : RenderTest
 		try
 		{
 			SaveFile(BasicChartSpecification, fileInfo);
-			fileInfo.Exists.Should().BeTrue();
+			AssertBasicChartDrawn(fileInfo, chartImageFormat);
 		}
 		catch (Exception ex)
 		{

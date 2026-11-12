@@ -1,4 +1,6 @@
 using System.Drawing;
+using System.Xml.Linq;
+using SkiaSharp;
 
 namespace PanoramicData.ChartMagic.Test;
 
@@ -50,6 +52,59 @@ public class RenderTest
 				fileInfo.Delete();
 			}
 		}
+	}
+
+	/// <summary>
+	/// How many distinct colours an image holds, sampled, so a flat fill reads as one.
+	/// </summary>
+	protected static int CountDistinctColours(byte[] imageBytes)
+	{
+		using var bitmap = SKBitmap.Decode(imageBytes);
+		bitmap.Should().NotBeNull("the output should be a decodable image");
+
+		var colours = new HashSet<SKColor>();
+
+		// Sampling every fourth pixel keeps this fast while remaining far more than enough to
+		// distinguish a real chart from a flat fill.
+		for (var x = 0; x < bitmap.Width; x += 4)
+		{
+			for (var y = 0; y < bitmap.Height; y += 4)
+			{
+				colours.Add(bitmap.GetPixel(x, y));
+			}
+		}
+
+		return colours.Count;
+	}
+
+	/// <summary>
+	/// How many elements of each name an SVG file holds.
+	/// </summary>
+	protected static Dictionary<string, int> SvgCensus(FileInfo file)
+		=> XDocument.Load(file.FullName)
+			.Descendants()
+			.GroupBy(element => element.Name.LocalName)
+			.ToDictionary(group => group.Key, group => group.Count());
+
+	/// <summary>
+	/// Requires the file to hold the drawn basic chart, so a blank render fails: for SVG its
+	/// series paths, markers and labels, and for raster its many colours.
+	/// </summary>
+	protected static void AssertBasicChartDrawn(FileInfo file, ChartImageFormat format)
+	{
+		file.Refresh();
+		file.Exists.Should().BeTrue();
+		if (format != ChartImageFormat.Svg)
+		{
+			CountDistinctColours(File.ReadAllBytes(file.FullName)).Should().BeGreaterThan(32, "four series, a legend and annotations are not a flat fill");
+			return;
+		}
+
+		var census = SvgCensus(file);
+		census.GetValueOrDefault("path").Should().BeGreaterThanOrEqualTo(4, "each of the four series draws a path");
+		census.GetValueOrDefault("use").Should().BeGreaterThanOrEqualTo(20, "the series carry markers");
+		census.GetValueOrDefault("text").Should().BeGreaterThanOrEqualTo(7, "the legend, annotations and axes are labelled");
+		file.Length.Should().BeGreaterThan(10_000, "an empty chart is under 2 KB");
 	}
 
 	protected ChartSpecification BasicChartSpecification = new()

@@ -54,23 +54,28 @@ public class RasterContentTests : RenderTest
 			"three widely separated samples should not all be the same colour");
 	}
 
-	private static int CountDistinctColours(byte[] pngBytes)
+	/// <summary>
+	/// Marks must be drawn where the series are: the red line series leaves red pixels, and the
+	/// blank background is silver.
+	/// </summary>
+	[Fact]
+	public void Png_DrawsTheRedSeriesOverTheBackground()
 	{
-		using var bitmap = SKBitmap.Decode(pngBytes);
-		bitmap.Should().NotBeNull("the output should be a decodable image");
+		using var bitmap = SKBitmap.Decode(RenderToPngBytes(BasicChartSpecification));
 
-		var colours = new HashSet<SKColor>();
-
-		// Sampling every fourth pixel keeps this fast while remaining far more than enough to
-		// distinguish a real chart from a flat fill.
-		for (var x = 0; x < bitmap.Width; x += 4)
+		var redPixels = 0;
+		for (var x = 0; x < bitmap.Width; x++)
 		{
-			for (var y = 0; y < bitmap.Height; y += 4)
+			for (var y = 0; y < bitmap.Height; y++)
 			{
-				colours.Add(bitmap.GetPixel(x, y));
+				var pixel = bitmap.GetPixel(x, y);
+				if (pixel.Red > 200 && pixel.Green < 60 && pixel.Blue < 60)
+				{
+					redPixels++;
+				}
 			}
 		}
 
-		return colours.Count;
+		redPixels.Should().BeGreaterThan(200, "a three pixel wide red line crosses the plot");
 	}
 }
