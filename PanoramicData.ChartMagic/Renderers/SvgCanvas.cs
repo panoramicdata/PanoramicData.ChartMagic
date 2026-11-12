@@ -311,23 +311,7 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 	internal XmlElement PositionedGroup(ChartNamedElement element, string id, ChartElement? within = null, bool drawStroke = true)
 	{
 		var groupNode = Group(id);
-
-		// Y is measured from the bottom here and from the top in SVG, so a position becomes a
-		// distance from the top of the element above it.
-		var topPercent = 100 - (element.GetCanvasYLocationPercent() + element.GetCanvasHeightPercent());
-		var leftPercent = element.GetCanvasXLocationPercent();
-
-		if (within is not null)
-		{
-			leftPercent -= within.GetCanvasXLocationPercent();
-			topPercent -= 100 - (within.GetCanvasYLocationPercent() + within.GetCanvasHeightPercent());
-		}
-
-		var translation = $"{widthPixels * leftPercent / 100},{heightPixels * topPercent / 100}";
-		if (translation != "0,0")
-		{
-			groupNode.SetAttribute("transform", $"translate({translation})");
-		}
+		ApplyTranslation(groupNode, element, within);
 
 		var rectNode = Element("rect");
 		var width = widthPixels * element.GetCanvasWidthPercent() / 100;
@@ -369,5 +353,25 @@ internal sealed class SvgCanvas(int widthPixels, int heightPixels, bool debug)
 		}
 
 		return groupNode;
+	}
+
+	private void ApplyTranslation(XmlElement groupNode, ChartNamedElement element, ChartElement? within)
+	{
+		// Y is measured from the bottom here and from the top in SVG, so a position becomes a
+		// distance from the top of the element above it.
+		var topPercent = 100 - (element.GetCanvasYLocationPercent() + element.GetCanvasHeightPercent());
+		var leftPercent = element.GetCanvasXLocationPercent();
+
+		if (within is not null)
+		{
+			leftPercent -= within.GetCanvasXLocationPercent();
+			topPercent -= 100 - (within.GetCanvasYLocationPercent() + within.GetCanvasHeightPercent());
+		}
+
+		var translation = $"{widthPixels * leftPercent / 100},{heightPixels * topPercent / 100}";
+		if (translation != "0,0")
+		{
+			groupNode.SetAttribute("transform", $"translate({translation})");
+		}
 	}
 }
