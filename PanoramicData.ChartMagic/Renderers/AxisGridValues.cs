@@ -130,9 +130,7 @@ internal static class AxisGridValues
 		var interval = axis.MinorGridInterval;
 		if (interval is not > 0)
 		{
-			// Five subdivisions of the target major spacing, which is a conventional
-			// minor-to-major ratio and keeps the count bounded.
-			interval = (geometry.YDisplayEnd - geometry.YDisplayStart) / Math.Max(axis.TargetTickCount, 1) / 5;
+			interval = MajorStep(axis, geometry) / Math.Max(axis.MinorGridSubdivisions, 1);
 		}
 
 		return TickGenerator.Linear(
@@ -141,4 +139,11 @@ internal static class AxisGridValues
 			interval,
 			axis.TargetTickCount * 5);
 	}
+
+	/// <summary>
+	/// The step between major ticks on the value axis, which the minor ones subdivide.
+	/// </summary>
+	private static double MajorStep(AxisArea axis, PlotGeometry geometry)
+		=> axis.Interval ?? geometry.ValueAxisInterval
+			?? TickGenerator.NiceStep(geometry.YDisplayEnd - geometry.YDisplayStart, axis.TargetTickCount);
 }

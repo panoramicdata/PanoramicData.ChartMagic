@@ -72,6 +72,13 @@ internal sealed class FunnelRenderer(SvgCanvas canvas)
 	internal static bool IsFunnel(Series series) => series.ChartType == SeriesChartType.Funnel;
 
 	/// <summary>
+	/// Whether this series is drawn as a stack of segments rather than against axes: a funnel, or a
+	/// pyramid, which is the same stack widening to a base instead of narrowing to a neck.
+	/// </summary>
+	internal static bool IsSegmented(Series series)
+		=> series.ChartType is SeriesChartType.Funnel or SeriesChartType.Pyramid;
+
+	/// <summary>
 	/// Draws the funnel: one segment per point, then the labels and their leader lines.
 	/// </summary>
 	/// <param name="series">The funnel series.</param>
@@ -89,7 +96,8 @@ internal sealed class FunnelRenderer(SvgCanvas canvas)
 			return;
 		}
 
-		var funnelNode = _canvas.Group("funnel");
+		var isPyramid = series.ChartType == SeriesChartType.Pyramid;
+		var funnelNode = _canvas.Group(FunnelShape.NameFor(isPyramid));
 		innerPlotNode.AppendChild(funnelNode);
 
 		var labelled = segments.Exists(segment => segment.Label.Length > 0);
@@ -99,7 +107,7 @@ internal sealed class FunnelRenderer(SvgCanvas canvas)
 				(segments.Max(segment => segment.Label.Length) * series.FontSize * CharacterWidthFraction) + LabelPaddingPixels)
 			: 0;
 
-		var shape = new FunnelShape(plotWidth - labelColumnWidth, plotHeight);
+		var shape = new FunnelShape(plotWidth - labelColumnWidth, plotHeight, isPyramid);
 		var total = segments.Sum(segment => segment.Value);
 		var top = 0d;
 		var labelStyle = TextStyle.Unstroked(series.FontWeight, series.FontFamily, series.FontSize, series.FontColor);
@@ -118,7 +126,7 @@ internal sealed class FunnelRenderer(SvgCanvas canvas)
 					_canvas.Line(shape.CentreX + shape.HalfWidthAt(middle), middle, shape.Width, middle, LeaderLineColor, 1));
 				funnelNode.AppendChild(
 					_canvas.Text(
-						FormattableString.Invariant($"funnelLabel{segmentIndex}"),
+						FormattableString.Invariant($"{shape.Name}Label{segmentIndex}"),
 						shape.Width + LabelPaddingPixels,
 						middle,
 						segment.Label,
@@ -144,7 +152,7 @@ internal sealed class FunnelRenderer(SvgCanvas canvas)
 		};
 
 		// The segment the neck starts in turns a corner there, on each side.
-		var turnsIntoTheNeck = top < shape.NeckTop && bottom > shape.NeckTop;
+		var turnsIntoTheNeck = !shape.IsPyramid && top < shape.NeckTop && bottom > shape.NeckTop;
 		if (turnsIntoTheNeck)
 		{
 			outline.Add((shape.CentreX + shape.NeckHalfWidth, shape.NeckTop));
@@ -159,7 +167,7 @@ internal sealed class FunnelRenderer(SvgCanvas canvas)
 		}
 
 		var path = _canvas.Element("path");
-		path.SetAttribute("id", FormattableString.Invariant($"funnelSegment{segmentIndex}"));
+		path.SetAttribute("id", FormattableString.Invariant($"{shape.Name}Segment{segmentIndex}"));
 		path.SetAttribute(
 			"d",
 			"M" + string.Join(" L", outline.Select(p => $"{SvgCanvas.N(p.X)} {SvgCanvas.N(p.Y)}")) + " Z");
@@ -175,18 +183,26 @@ internal sealed class FunnelRenderer(SvgCanvas canvas)
 	}
 
 	/// <summary>
-	/// The outline every segment is cut from: full width at the top, narrowing in a straight line
-	/// to the neck, then straight down.
+	/// The outline every segment is cut from. A funnel is full width at the top, narrowing in a
+	/// straight line to the neck, then straight down; a pyramid is a point at the top, widening in
+	/// a straight line to the full width at the base.
 	/// </summary>
-	private sealed record FunnelShape(double Width, double Height)
+	private sealed record FunnelShape(double Width, double Height, bool IsPyramid)
 	{
+		internal string Name => NameFor(IsPyramid);
+
+		internal static string NameFor(bool isPyramid) => isPyramid ? "pyramid" : "funnel";
+
 		internal double CentreX => Width / 2;
 
-		internal double NeckHalfWidth => Width * NeckWidthFraction / 2;
+		internal double NeckHalfWidth => IsPyramid ? 0 : Width * NeckWidthFraction / 2;
 
-		internal double NeckTop => Height * (1 - NeckHeightFraction);
+		internal double NeckTop => IsPyramid ? Height : Height * (1 - NeckHeightFraction);
 
 		internal double HalfWidthAt(double y)
+			=> IsPyramid ? Width / 2 * y / Height : FunnelHalfWidthAt(y);
+
+		private double FunnelHalfWidthAt(double y)
 			=> y >= NeckTop
 				? NeckHalfWidth
 				: (Width / 2) - (((Width / 2) - NeckHalfWidth) * y / NeckTop);

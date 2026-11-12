@@ -7,6 +7,7 @@ internal sealed partial class SeriesRenderer
 	/// </summary>
 	private static bool FillsBeneathItsLine(SeriesChartType chartType)
 		=> chartType is SeriesChartType.Area
+			or SeriesChartType.SplineArea
 			or SeriesChartType.StackedArea
 			or SeriesChartType.StackedArea100;
 
@@ -20,7 +21,7 @@ internal sealed partial class SeriesRenderer
 	private static XmlElement? LineTarget(SeriesChartType chartType, XmlElement seriesNode, XmlElement stackLines)
 		=> chartType switch
 		{
-			SeriesChartType.Area or SeriesChartType.Line or SeriesChartType.FastLine => seriesNode,
+			SeriesChartType.Area or SeriesChartType.SplineArea or SeriesChartType.Line or SeriesChartType.FastLine or SeriesChartType.Spline => seriesNode,
 			SeriesChartType.StackedArea or SeriesChartType.StackedArea100 => stackLines,
 			_ => null
 		};
@@ -34,16 +35,10 @@ internal sealed partial class SeriesRenderer
 		Dictionary<string, double>? stackTotals,
 		string markerId)
 	{
-		var linePath = new StringBuilder();
-		// The outline only. Where the fill starts and finishes is decided once the first and last
-		// points are known, because it belongs under them and not at the edges of the plot.
-		var areaSegments = new StringBuilder();
-		double? firstXPosition = null;
-		var lastXPosition = 0d;
+		var points = new List<(double X, double Y)>();
 		var returnPathPoints = new List<(double X, double Y)>();
 		var markerNodes = new List<XmlElement>();
 		var labelAnchors = new List<DataLabelAnchor>();
-		var isFirstPoint = true;
 
 		var labelLift = LabelLift(series);
 
@@ -58,12 +53,7 @@ internal sealed partial class SeriesRenderer
 				returnPathPoints.Add((xPosition, geometry.YToPixels(previousYValue.Value)));
 			}
 
-			// Letter - always M to start, afterwards L unless the previous value is null
-			linePath.Append($"{(isFirstPoint ? "M" : " L")}{xPosition} {yPosition}");
-			areaSegments.Append($" L{xPosition} {yPosition}");
-			firstXPosition ??= xPosition;
-			lastXPosition = xPosition;
-			isFirstPoint = false;
+			points.Add((xPosition, yPosition));
 
 			if (series.MarkerStyle != MarkerStyle.None)
 			{
@@ -76,11 +66,14 @@ internal sealed partial class SeriesRenderer
 			}
 		}
 
+		// The outline only. Where the fill starts and finishes is decided once the first and last
+		// points are known, because it belongs under them and not at the edges of the plot.
+		var (linePath, areaSegments) = SeriesPaths.For(series.ChartType, points);
 		return new SeriesTrace(
-			linePath.ToString(),
-			areaSegments.ToString(),
-			firstXPosition,
-			lastXPosition,
+			linePath,
+			areaSegments,
+			points.Count > 0 ? points[0].X : null,
+			points.Count > 0 ? points[^1].X : 0,
 			returnPathPoints,
 			markerNodes,
 			labelAnchors);

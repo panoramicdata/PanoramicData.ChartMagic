@@ -178,7 +178,7 @@ public class AxisTests
 		var labels = LabelTexts(Render(specification), "yAxis");
 
 		labels.Should().NotBeEmpty();
-		labels.Should().AllSatisfy(l => l.Should().Contain(".", "every label carries one decimal place"));
+		labels.Where(l => l != "0").Should().AllSatisfy(l => l.Should().Contain(".", "every label but the origin carries one decimal place"));
 	}
 
 	[Fact]

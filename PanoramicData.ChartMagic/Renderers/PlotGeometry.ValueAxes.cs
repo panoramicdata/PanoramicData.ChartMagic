@@ -70,7 +70,10 @@ internal sealed partial class PlotGeometry
 		var largest = chart.ChartArea.YAxis.Max is > 0
 			? chart.ChartArea.YAxis.Max.Value
 			: positiveValues.Count > 0 ? positiveValues.Max() : 10;
-		var minimum = Math.Pow(10, Math.Floor(Math.Log10(smallest)));
+		var decade = Math.Pow(10, Math.Floor(Math.Log10(smallest)));
+
+		// Windows starts a logarithmic axis at 1 unless the data, or an explicit minimum, goes below it.
+		var minimum = chart.ChartArea.YAxis.Min is > 0 ? decade : Math.Min(1, decade);
 		var maximum = Math.Pow(10, Math.Ceiling(Math.Log10(largest <= smallest ? smallest * 10 : largest)));
 		var start = Math.Log10(minimum);
 		return (minimum, maximum, start, Math.Log10(maximum) - start);

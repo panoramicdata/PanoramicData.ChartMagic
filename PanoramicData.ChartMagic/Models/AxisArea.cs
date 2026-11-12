@@ -22,6 +22,14 @@ public class AxisArea(IChartElement parent, string name) : ChartNamedElement(par
 	public string? LabelFormat { get; set; }
 	public bool IsLogarithmic { get; set; }
 
+	/// <summary>
+	/// What the values on this axis are. A date type makes the axis read them as OLE Automation
+	/// dates, in days, and label and tick them as dates.
+	/// </summary>
+	public ChartValueType ValueType { get; set; }
+
+	internal bool IsDateAxis => ValueType is ChartValueType.DateTime or ChartValueType.Date or ChartValueType.DateTimeOffset;
+
 	public double? Min { get; set; }
 	public double? Max { get; set; }
 

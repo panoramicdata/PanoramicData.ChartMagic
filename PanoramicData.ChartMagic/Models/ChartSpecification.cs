@@ -300,6 +300,7 @@ public class ChartSpecification
 		xAxis.IntervalType = XAxisIntervalType;
 		xAxis.XAxisIntervalAutoMode = XAxisIntervalAutoMode;
 		xAxis.IsLogarithmic = XAxisIsLogarithmic;
+		xAxis.ValueType = XValueType;
 		xAxis.MajorGridEnabled = XAxisMajorGridEnabled;
 		xAxis.MajorGridInterval = XAxisMajorGridInterval;
 		xAxis.MajorGridIntervalType = XAxisMajorGridIntervalType;

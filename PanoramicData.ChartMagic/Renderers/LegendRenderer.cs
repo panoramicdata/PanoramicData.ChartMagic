@@ -9,6 +9,7 @@ namespace PanoramicData.ChartMagic.Renderers;
 internal sealed partial class LegendRenderer(SvgCanvas canvas)
 {
 	private readonly SvgCanvas _canvas = canvas;
+	private readonly MarkerFactory _markers = new(canvas);
 
 	/// <summary>
 	/// How far in from the left of the legend an entry starts, as a fraction of its width.
@@ -33,8 +34,9 @@ internal sealed partial class LegendRenderer(SvgCanvas canvas)
 	/// <param name="Id">The id the entry's text node is given.</param>
 	/// <param name="Text">The entry text, before any wrapping or shortening.</param>
 	/// <param name="Color">The swatch colour.</param>
-	/// <param name="IsLine">Whether the swatch is drawn as a bar, for a line series.</param>
-	private sealed record Entry(string Id, string Text, Color Color, bool IsLine);
+	/// <param name="IsLine">Whether the swatch is drawn as a thin line, for a line series.</param>
+	/// <param name="MarkerId">The id of the series marker drawn on a line swatch, or null for none.</param>
+	private sealed record Entry(string Id, string Text, Color Color, bool IsLine, string? MarkerId = null);
 
 	/// <summary>
 	/// An entry laid out: where its swatch goes, and the lines of text beside it.
@@ -70,7 +72,8 @@ internal sealed partial class LegendRenderer(SvgCanvas canvas)
 				$"legendSeries{index}Text",
 				LegendTextFor(series),
 				SwatchColorFor(series),
-				IsLine(series.ChartType)))
+				IsLine(series.ChartType),
+				MarkerIdFor(series, index)))
 			.ToList();
 
 		if (IsReversed(legend.ItemOrder, chart.Series))

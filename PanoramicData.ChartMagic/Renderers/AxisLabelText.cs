@@ -19,6 +19,11 @@ internal static class AxisLabelText
 	/// </summary>
 	internal static string FormatAxisValue(double value, AxisArea axis, CultureInfo culture)
 	{
+		if (axis.IsDateAxis && IsOleDate(value))
+		{
+			return DateTime.FromOADate(value).ToString(axis.LabelFormat is { Length: > 0 } ? axis.LabelFormat : "d", culture);
+		}
+
 		if (axis.LabelFormat is { Length: > 0 })
 		{
 			return value.ToString(axis.LabelFormat, culture);
@@ -34,6 +39,11 @@ internal static class AxisLabelText
 	}
 
 	/// <summary>
+	/// Whether a number is within the range of dates an OLE Automation date can hold.
+	/// </summary>
+	private static bool IsOleDate(double value) => value is > -657434 and < 2958466;
+
+	/// <summary>
 	/// A short axis label: one decimal place, with a suffix once the value reaches a thousand.
 	/// </summary>
 	/// <remarks>
@@ -45,6 +55,11 @@ internal static class AxisLabelText
 	/// </remarks>
 	internal static string ShortAxisLabel(double value, CultureInfo culture)
 	{
+		if (value == 0)
+		{
+			return "0";
+		}
+
 		var absolute = Math.Abs(value);
 		if (absolute >= 1_000_000_000)
 		{

@@ -16,10 +16,10 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 	{
 		var axisHandlerResult = new AxisHandler(chart).Process();
 		var pieSeries = chart.Series.FirstOrDefault(PieRenderer.IsPie);
-		var funnelSeries = chart.Series.FirstOrDefault(FunnelRenderer.IsFunnel);
+		var funnelSeries = chart.Series.FirstOrDefault(FunnelRenderer.IsSegmented);
 
 		// Before anything is placed, since it may move the plot's edges to make room for the labels.
-		var axisLayout = pieSeries is null && funnelSeries is null
+		var axisLayout = pieSeries is null && funnelSeries is null && !chart.Series.Any(RadialRenderer.IsRadial)
 			? AxisLayout.Apply(chart, axisHandlerResult, widthPixels, heightPixels)
 			: null;
 
@@ -82,6 +82,11 @@ internal sealed class InternalSvgRenderer(int widthPixels, int heightPixels, boo
 			var plotTop = heightPixels * (100 - chart.ChartArea.InnerPlot.GetCanvasYLocationPercent() - chart.ChartArea.InnerPlot.GetCanvasHeightPercent()) / 100;
 			new PieRenderer(_canvas).Plot(pieSeries, slices, innerPlotNode, geometry.Width, geometry.Height, -plotTop, heightPixels - plotTop);
 			legends.PlotPieLegend(chart, slices, chartBackgroundAreaNode);
+		}
+		else if (chart.Series.Any(RadialRenderer.IsRadial))
+		{
+			new RadialRenderer(_canvas).Plot(chart, geometry, innerPlotNode);
+			legends.PlotLegends(chart, chartBackgroundAreaNode);
 		}
 		else
 		{

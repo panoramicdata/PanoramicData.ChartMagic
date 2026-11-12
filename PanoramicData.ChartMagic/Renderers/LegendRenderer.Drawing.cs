@@ -8,12 +8,12 @@ internal sealed partial class LegendRenderer
 	/// Draws one entry: its swatch and its text.
 	/// </summary>
 	/// <remarks>
-	/// A line series is represented by a bar rather than a block, so that the legend distinguishes
-	/// a line from a filled area at a glance.
+	/// A line series is represented by a thin line, with its marker where it has one, rather than
+	/// a block, as Windows draws it and so that the legend tells a line from a filled area.
 	/// </remarks>
 	private void AppendEntry(XmlElement legendNode, LegendMetrics metrics, TextStyle labelStyle, Placement placement)
 	{
-		var swatchHeight = placement.Item.IsLine ? Math.Max(2, Math.Round(metrics.SwatchHeight / 4, 2)) : metrics.SwatchHeight;
+		var swatchHeight = placement.Item.IsLine ? LineSwatchHeightPixels : metrics.SwatchHeight;
 		var swatchNode = CreateSwatch(
 			placement.X,
 			Math.Round(placement.CentreY - (swatchHeight / 2), 2),
@@ -21,6 +21,10 @@ internal sealed partial class LegendRenderer
 			swatchHeight,
 			placement.Item.Color);
 		legendNode.AppendChild(swatchNode);
+		if (placement.Item.MarkerId is { } markerId)
+		{
+			legendNode.AppendChild(_markers.CreateMarkerReference(markerId, placement.X + (metrics.SwatchWidth / 2), placement.CentreY));
+		}
 
 		var lineHeight = metrics.FontSize * LineHeightFraction;
 		var textX = placement.X + metrics.SwatchWidth + (metrics.Padding / 2);
@@ -38,6 +42,15 @@ internal sealed partial class LegendRenderer
 					labelStyle));
 		}
 	}
+
+	/// <summary>The height of the line a line series is represented by.</summary>
+	private const double LineSwatchHeightPixels = 2;
+
+	/// <summary>The id of the marker a line series draws on its swatch, or null where it has none.</summary>
+	private static string? MarkerIdFor(Series series, int index)
+		=> IsLine(series.ChartType) && series.MarkerStyle != MarkerStyle.None
+			? FormattableString.Invariant($"series{index}Marker")
+			: null;
 
 	/// <summary>
 	/// A legend swatch rectangle, filled but not outlined.

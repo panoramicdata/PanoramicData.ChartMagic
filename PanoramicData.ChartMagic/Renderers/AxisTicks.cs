@@ -49,11 +49,10 @@ internal static class AxisTicks
 				: [.. geometry.Categories.Where((_, index) => index % step == 0)];
 		}
 
-		return TickGenerator.Linear(
-			geometry.XDisplayStart,
-			geometry.XDisplayEnd,
-			chart.ChartArea.XAxis.Interval,
-			chart.ChartArea.XAxis.TargetTickCount);
+		var xAxis = chart.ChartArea.XAxis;
+		return xAxis.IsDateAxis
+			? TickGenerator.Dates(geometry.XDisplayStart, geometry.XDisplayEnd, xAxis.Interval, xAxis.IntervalType, xAxis.TargetTickCount)
+			: TickGenerator.Linear(geometry.XDisplayStart, geometry.XDisplayEnd, xAxis.Interval, xAxis.TargetTickCount);
 	}
 
 	/// <summary>
