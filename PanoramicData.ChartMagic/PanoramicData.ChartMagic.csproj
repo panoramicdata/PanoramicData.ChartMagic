@@ -7,7 +7,7 @@
     <Company>Panoramic Data Limited</Company>
     <Authors>Panoramic Data Limited</Authors>
     <Product>ChartMagic</Product>
-    <Description>ChartMagic: A .NET 9 library for advanced chart rendering and manipulation.</Description>
+    <Description>ChartMagic: A .NET library for advanced chart rendering and manipulation.</Description>
     <PackageTags>ChartMagic;chart;graphics;svg;rendering;visualization</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/panoramicdata/PanoramicData.ChartMagic</PackageProjectUrl>

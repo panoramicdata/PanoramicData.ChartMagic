@@ -7,6 +7,8 @@
 # ChartMagic
 An open source, charting nuget package.  Renders to vector and bitmap formats.
 
+Supports .NET 11.0.
+
 ## The demo
 
 `PanoramicData.ChartMagic.Demo` is a WebAssembly page showing one chart per tab, with every
