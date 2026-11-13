@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Text.Json.Serialization;
 
 namespace PanoramicData.ChartMagic.Models;
 
@@ -22,4 +23,15 @@ public record ChartPoint(
 	double XValue,
 	double? YValue,
 	Color? Color = null,
-	string? LegendText = null);
+	string? LegendText = null)
+{
+	/// <summary>
+	/// The several Y values a point carries where one is not enough. A box plot takes six or more, in
+	/// the Microsoft chart control's order: lower whisker, upper whisker, lower box, upper box,
+	/// average, median, then any further values drawn as unusual points. Null for every other chart
+	/// type, and left out of the serialised form when null.
+	/// </summary>
+	[JsonPropertyOrder(5)]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public IReadOnlyList<double>? YValues { get; init; }
+}

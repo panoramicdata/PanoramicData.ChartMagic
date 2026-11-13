@@ -21,9 +21,12 @@ internal sealed partial class SeriesRenderer
 		int slot,
 		int slotCount)
 	{
-		var bandExtent = geometry.CategoryBandExtent;
-		var groupExtent = bandExtent * chart.ChartArea.ColumnBandFillFraction;
-		var slotExtent = groupExtent / slotCount;
+		var (groupExtent, slotExtent) = SlotExtents(chart, geometry, slotCount);
+		if (series.ChartType == SeriesChartType.BoxPlot)
+		{
+			return PlotBoxPlotSeries(geometry, series, seriesNode, slot, groupExtent, slotExtent);
+		}
+
 		var origin = geometry.ValueAxisOrigin;
 		var isHorizontal = PlotGeometry.IsHorizontal(series.ChartType);
 		var labelAnchors = new List<DataLabelAnchor>();
@@ -55,6 +58,15 @@ internal sealed partial class SeriesRenderer
 		}
 
 		return labelAnchors;
+	}
+
+	/// <summary>
+	/// The width of the group of banded series within a category band, and of one series' slot in it.
+	/// </summary>
+	private static (double Group, double Slot) SlotExtents(Chart chart, PlotGeometry geometry, int slotCount)
+	{
+		var groupExtent = geometry.CategoryBandExtent * chart.ChartArea.ColumnBandFillFraction;
+		return (groupExtent, groupExtent / slotCount);
 	}
 
 	/// <summary>

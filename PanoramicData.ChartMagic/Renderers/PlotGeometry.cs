@@ -96,7 +96,8 @@ internal sealed partial class PlotGeometry
 		or SeriesChartType.StackedColumn100
 		or SeriesChartType.Bar
 		or SeriesChartType.StackedBar
-		or SeriesChartType.StackedBar100;
+		or SeriesChartType.StackedBar100
+		or SeriesChartType.BoxPlot;
 
 	/// <summary>
 	/// Whether this chart type stacks onto the running total for its category.

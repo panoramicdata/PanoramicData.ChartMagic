@@ -12,11 +12,11 @@ internal class AxisHandler(Chart chart)
 			return result;
 		}
 
-		result.MinY = chart.Series.Min(s => s.Points.Where(p => p.YValue is not null).Min(p => (double)p.YValue!));
+		result.MinY = chart.Series.SelectMany(s => s.Points).SelectMany(ValuesOf).DefaultIfEmpty(0).Min();
 		result.MaxXCount = chart.Series.Max(s => s.Points.Count);
 
 		result.MaxY = new[] {
-			chart.Series.Max(s => s.Points.Where(p => p.YValue is not null).Max(p => (double)p.YValue!)),
+			chart.Series.SelectMany(s => s.Points).SelectMany(ValuesOf).DefaultIfEmpty(0).Max(),
 			GetMaxY(SeriesChartType.StackedArea),
 			GetMaxY(SeriesChartType.StackedColumn),
 			GetMaxY(SeriesChartType.StackedBar)}
@@ -35,6 +35,14 @@ internal class AxisHandler(Chart chart)
 
 		return result;
 	}
+
+	/// <summary>
+	/// Every value a point puts on the value axis: its Y value, and any it carries beyond that,
+	/// which a box plot's whiskers and unusual points need room for.
+	/// </summary>
+	private static IEnumerable<double> ValuesOf(ChartPoint point)
+		=> (point.YValue is { } single ? [single] : Enumerable.Empty<double>())
+			.Concat((point.YValues ?? []).Where(value => !double.IsNaN(value)));
 
 	private double GetMaxY(SeriesChartType seriesChartType)
 	{
