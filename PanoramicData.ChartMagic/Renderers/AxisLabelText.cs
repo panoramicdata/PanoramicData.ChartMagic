@@ -55,12 +55,11 @@ internal static class AxisLabelText
 	/// </remarks>
 	internal static string ShortAxisLabel(double value, CultureInfo culture)
 	{
-		if (value == 0)
+		var absolute = Math.Abs(value);
+		if (absolute < 0.05)
 		{
 			return "0";
 		}
-
-		var absolute = Math.Abs(value);
 		if (absolute >= 1_000_000_000)
 		{
 			return (value / 1_000_000_000).ToString("0.0", culture) + "G";
