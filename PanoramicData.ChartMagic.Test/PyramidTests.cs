@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Globalization;
 using System.Xml.Linq;
+using static PanoramicData.ChartMagic.Test.Support.ChartFixtures;
 using static PanoramicData.ChartMagic.Test.Support.RenderedChart;
 
 namespace PanoramicData.ChartMagic.Test;
@@ -11,23 +12,14 @@ namespace PanoramicData.ChartMagic.Test;
 public class PyramidTests
 {
 	private static ChartSpecification Pyramid(string? labelText = null)
-		=> new()
-		{
-			SeriesList =
+		=> SingleSeries(
+			SeriesChartType.Pyramid,
 			[
-				new()
-				{
-					ChartType = SeriesChartType.Pyramid,
-					LabelText = labelText,
-					Points =
-					[
-						new ChartPoint("Top", 0, 10, Color.SteelBlue),
-						new ChartPoint("Middle", 1, 30, Color.SeaGreen),
-						new ChartPoint("Base", 2, 60, Color.Goldenrod)
-					]
-				}
-			]
-		};
+				new ChartPoint("Top", 0, 10, Color.SteelBlue),
+				new ChartPoint("Middle", 1, 30, Color.SeaGreen),
+				new ChartPoint("Base", 2, 60, Color.Goldenrod)
+			],
+			s => s.LabelText = labelText);
 
 	private static List<XElement> Segments(XDocument document)
 		=> Elements(GroupById(document, "pyramid"), "path");
