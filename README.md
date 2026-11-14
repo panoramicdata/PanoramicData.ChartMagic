@@ -5,6 +5,9 @@
 [![Codacy Badge](https://app.codacy.com/project/badge/grade/PanoramicData.ChartMagic)](https://app.codacy.com/gh/panoramicdata/PanoramicData.ChartMagic/dashboard)
 
 # ChartMagic
+
+> **Need help with APIs or .NET?** Panoramic Data are experts in APIs and .NET, and we can help with your development. [Contact us](https://www.panoramicdata.com/contact-us) or see our [software services](https://www.panoramicdata.com/services/software).
+
 An open source, charting nuget package.  Renders to vector and bitmap formats.
 
 Supports .NET 11.0.
