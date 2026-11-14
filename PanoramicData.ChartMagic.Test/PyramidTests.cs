@@ -24,14 +24,9 @@ public class PyramidTests
 	private static List<XElement> Segments(XDocument document)
 		=> Elements(GroupById(document, "pyramid"), "path");
 
-	private static List<double[]> Outline(XElement segment)
-		=> [.. segment.Attribute("d")!.Value
-			.Split(['M', 'L', 'Z'], StringSplitOptions.RemoveEmptyEntries)
-			.Select(pair => pair.Trim().Split(' ').Select(n => double.Parse(n, CultureInfo.InvariantCulture)).ToArray())];
-
 	private static double WidthAt(XElement segment, bool top)
 	{
-		var points = Outline(segment);
+		var points = PathVertices(segment);
 		var y = top ? points.Min(p => p[1]) : points.Max(p => p[1]);
 		var xs = points.Where(p => Math.Abs(p[1] - y) < 0.01).Select(p => p[0]).ToList();
 		return xs.Max() - xs.Min();
@@ -71,7 +66,7 @@ public class PyramidTests
 	public void Pyramid_SegmentHeights_AreProportionalToTheValues()
 	{
 		var heights = Segments(Render(Pyramid()))
-			.Select(segment => Outline(segment).Max(p => p[1]) - Outline(segment).Min(p => p[1]))
+			.Select(segment => PathVertices(segment).Max(p => p[1]) - PathVertices(segment).Min(p => p[1]))
 			.ToList();
 
 		(heights[2] / heights[0]).Should().BeApproximately(6, 0.01);

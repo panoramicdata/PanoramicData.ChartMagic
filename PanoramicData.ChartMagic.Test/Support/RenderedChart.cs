@@ -99,6 +99,12 @@ internal static class RenderedChart
 			.Select(segment => segment.Split([',', ' '])[0])
 			.Select(x => double.Parse(x, CultureInfo.InvariantCulture))];
 
+	/// <summary>The vertices of a closed straight-sided outline, as x and y pairs.</summary>
+	internal static List<double[]> PathVertices(XElement path)
+		=> [.. path.Attribute("d")!.Value
+			.Split(['M', 'L', 'Z'], StringSplitOptions.RemoveEmptyEntries)
+			.Select(pair => pair.Trim().Split(' ').Select(n => double.Parse(n, CultureInfo.InvariantCulture)).ToArray())];
+
 	/// <summary>
 	/// A group's translation, or the origin where it has none.
 	/// </summary>

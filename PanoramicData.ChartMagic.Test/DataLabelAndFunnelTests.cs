@@ -150,19 +150,13 @@ public class DataLabelAndFunnelTests
 	/// <summary>The top and bottom of a segment, from its outline.</summary>
 	private static (double Top, double Bottom) VerticalExtent(XElement segment)
 	{
-		var ys = segment.Attribute("d")!.Value
-			.Split(['M', 'L', 'Z'], StringSplitOptions.RemoveEmptyEntries)
-			.Select(pair => double.Parse(pair.Trim().Split(' ')[1], CultureInfo.InvariantCulture))
-			.ToList();
+		var ys = PathVertices(segment).Select(point => point[1]).ToList();
 		return (ys.Min(), ys.Max());
 	}
 
 	private static double WidthAtTop(XElement segment)
 	{
-		var points = segment.Attribute("d")!.Value
-			.Split(['M', 'L', 'Z'], StringSplitOptions.RemoveEmptyEntries)
-			.Select(pair => pair.Trim().Split(' ').Select(n => double.Parse(n, CultureInfo.InvariantCulture)).ToArray())
-			.ToList();
+		var points = PathVertices(segment);
 		return points[1][0] - points[0][0];
 	}
 
