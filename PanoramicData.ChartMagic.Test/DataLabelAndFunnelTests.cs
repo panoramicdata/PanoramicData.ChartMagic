@@ -166,8 +166,7 @@ public class DataLabelAndFunnelTests
 		var segments = Segments(Render(Funnel()));
 
 		segments.Should().HaveCount(3);
-		segments.Select(segment => segment.Attribute("fill")!.Value)
-			.Should().Equal(Color.SteelBlue.ToHex(), Color.SeaGreen.ToHex(), Color.Goldenrod.ToHex());
+		AssertThreePointFills(segments);
 	}
 
 	[Fact]
