@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Globalization;
 using System.Text;
 using System.Xml.Linq;
@@ -98,6 +99,11 @@ internal static class RenderedChart
 			.Split(['M', 'L'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
 			.Select(segment => segment.Split([',', ' '])[0])
 			.Select(x => double.Parse(x, CultureInfo.InvariantCulture))];
+
+	/// <summary>Asserts the fills of three segments are steel blue, sea green and goldenrod, in order.</summary>
+	internal static void AssertThreePointFills(IEnumerable<XElement> segments)
+		=> segments.Select(segment => segment.Attribute("fill")!.Value)
+			.Should().Equal(Color.SteelBlue.ToHex(), Color.SeaGreen.ToHex(), Color.Goldenrod.ToHex());
 
 	/// <summary>The vertices of a closed straight-sided outline, as x and y pairs.</summary>
 	internal static List<double[]> PathVertices(XElement path)

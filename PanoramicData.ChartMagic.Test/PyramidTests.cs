@@ -37,8 +37,7 @@ public class PyramidTests
 	{
 		var segments = Segments(Render(Pyramid()));
 
-		segments.Select(segment => segment.Attribute("fill")!.Value)
-			.Should().Equal(Color.SteelBlue.ToHex(), Color.SeaGreen.ToHex(), Color.Goldenrod.ToHex());
+		AssertThreePointFills(segments);
 	}
 
 	[Fact]
