@@ -2,7 +2,7 @@
 
 [![NuGet version](https://img.shields.io/nuget/v/PanoramicData.ChartMagic.svg)](https://www.nuget.org/packages/PanoramicData.ChartMagic/)
 
-[![Codacy Badge](https://app.codacy.com/project/badge/grade/PanoramicData.ChartMagic)](https://app.codacy.com/gh/panoramicdata/PanoramicData.ChartMagic/dashboard)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/9ec9e8d8acc044ce9383b1fbd8246ae8)](https://app.codacy.com/gh/panoramicdata/PanoramicData.ChartMagic/dashboard)
 
 # ChartMagic
 
